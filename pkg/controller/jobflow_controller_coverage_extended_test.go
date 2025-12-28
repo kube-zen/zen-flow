@@ -127,7 +127,9 @@ func TestJobFlowController_createExecutionPlan_Extended(t *testing.T) {
 
 func TestJobFlowController_handleStepFailure_ContinueOnFailure(t *testing.T) {
 	scheme := runtime.NewScheme()
-	v1alpha1.AddToScheme(scheme)
+	if err := v1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatalf("Failed to add scheme: %v", err)
+	}
 	dynamicClient := fake.NewSimpleDynamicClient(scheme)
 	kubeClient := kubefake.NewSimpleClientset()
 
@@ -203,7 +205,9 @@ func TestJobFlowController_handleStepFailure_ContinueOnFailure(t *testing.T) {
 
 func TestJobFlowController_handleStepFailure_StopOnFailure(t *testing.T) {
 	scheme := runtime.NewScheme()
-	v1alpha1.AddToScheme(scheme)
+	if err := v1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatalf("Failed to add scheme: %v", err)
+	}
 	dynamicClient := fake.NewSimpleDynamicClient(scheme)
 	kubeClient := kubefake.NewSimpleClientset()
 
@@ -327,7 +331,9 @@ func TestJobFlowController_isRetryable_Extended(t *testing.T) {
 
 func TestJobFlowController_updateJobFlowStatus_AllSucceeded(t *testing.T) {
 	scheme := runtime.NewScheme()
-	v1alpha1.AddToScheme(scheme)
+	if err := v1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatalf("Failed to add scheme: %v", err)
+	}
 	dynamicClient := fake.NewSimpleDynamicClient(scheme)
 	kubeClient := kubefake.NewSimpleClientset()
 
@@ -387,7 +393,9 @@ func TestJobFlowController_updateJobFlowStatus_AllSucceeded(t *testing.T) {
 
 func TestJobFlowController_updateJobFlowStatus_SomeFailed(t *testing.T) {
 	scheme := runtime.NewScheme()
-	v1alpha1.AddToScheme(scheme)
+	if err := v1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatalf("Failed to add scheme: %v", err)
+	}
 	dynamicClient := fake.NewSimpleDynamicClient(scheme)
 	kubeClient := kubefake.NewSimpleClientset()
 
@@ -441,7 +449,9 @@ func TestJobFlowController_updateJobFlowStatus_SomeFailed(t *testing.T) {
 
 func TestJobFlowController_reconcileJobFlow_Deleted(t *testing.T) {
 	scheme := runtime.NewScheme()
-	v1alpha1.AddToScheme(scheme)
+	if err := v1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatalf("Failed to add scheme: %v", err)
+	}
 	dynamicClient := fake.NewSimpleDynamicClient(scheme)
 	kubeClient := kubefake.NewSimpleClientset()
 
@@ -513,7 +523,9 @@ func TestJobFlowController_reconcileJobFlow_InvalidKey(t *testing.T) {
 
 func TestJobFlowController_reconcileJobFlow_ValidationFailed(t *testing.T) {
 	scheme := runtime.NewScheme()
-	v1alpha1.AddToScheme(scheme)
+	if err := v1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatalf("Failed to add scheme: %v", err)
+	}
 	dynamicClient := fake.NewSimpleDynamicClient(scheme)
 	kubeClient := kubefake.NewSimpleClientset()
 
