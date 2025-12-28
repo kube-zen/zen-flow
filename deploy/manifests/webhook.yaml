@@ -1,0 +1,61 @@
+# P0.6: Validating and Mutating Webhook Configurations for zen-flow
+# These webhooks provide validation and mutation for JobFlow resources.
+#
+# Note: For production use, ensure the caBundle is properly configured.
+# If using cert-manager, the caBundle will be injected automatically.
+# Otherwise, you need to manually set the caBundle field with the CA certificate.
+
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: zen-flow-validating-webhook
+  labels:
+    app: zen-flow-controller
+webhooks:
+  - name: validate-jobflow.workflow.zen.io
+    clientConfig:
+      service:
+        name: zen-flow-controller
+        namespace: zen-flow-system
+        path: "/validate-jobflow"
+    rules:
+      - apiGroups: ["workflow.zen.io"]
+        apiVersions: ["v1alpha1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["jobflows"]
+    admissionReviewVersions: ["v1", "v1beta1"]
+    sideEffects: None
+    failurePolicy: Fail
+    # P0.6: caBundle must be set manually if not using cert-manager
+    # To get the CA certificate:
+    # kubectl get secret zen-flow-webhook-cert -n zen-flow-system -o jsonpath='{.data.ca\.crt}' | base64 -d
+    # caBundle: <base64-encoded-ca-certificate>
+
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: zen-flow-mutating-webhook
+  labels:
+    app: zen-flow-controller
+webhooks:
+  - name: mutate-jobflow.workflow.zen.io
+    clientConfig:
+      service:
+        name: zen-flow-controller
+        namespace: zen-flow-system
+        path: "/mutate-jobflow"
+    rules:
+      - apiGroups: ["workflow.zen.io"]
+        apiVersions: ["v1alpha1"]
+        operations: ["CREATE"]
+        resources: ["jobflows"]
+    admissionReviewVersions: ["v1", "v1beta1"]
+    sideEffects: None
+    failurePolicy: Fail
+    # P0.6: caBundle must be set manually if not using cert-manager
+    # To get the CA certificate:
+    # kubectl get secret zen-flow-webhook-cert -n zen-flow-system -o jsonpath='{.data.ca\.crt}' | base64 -d
+    # caBundle: <base64-encoded-ca-certificate>
+

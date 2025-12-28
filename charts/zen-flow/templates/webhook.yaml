@@ -1,8 +1,9 @@
 {{- if .Values.webhook.enabled }}
 {{- if .Values.webhook.certManager.enabled }}
 ---
+# P0.7: Fixed - this is a Certificate resource, not an Issuer/ClusterIssuer
 apiVersion: cert-manager.io/v1
-kind: {{ .Values.webhook.certManager.issuer.kind }}
+kind: Certificate
 metadata:
   name: {{ include "zen-flow.fullname" . }}-webhook-cert
   namespace: {{ include "zen-flow.namespace" . }}
@@ -33,6 +34,10 @@ webhooks:
         name: {{ include "zen-flow.fullname" . }}-webhook
         namespace: {{ include "zen-flow.namespace" . }}
         path: "/validate-jobflow"
+      {{- if not .Values.webhook.certManager.enabled }}
+      # P0.7: caBundle must be set manually if cert-manager is disabled
+      # caBundle: <base64-encoded-ca-certificate>
+      {{- end }}
     rules:
       - apiGroups: ["workflow.zen.io"]
         apiVersions: ["v1alpha1"]
@@ -59,6 +64,10 @@ webhooks:
         name: {{ include "zen-flow.fullname" . }}-webhook
         namespace: {{ include "zen-flow.namespace" . }}
         path: "/mutate-jobflow"
+      {{- if not .Values.webhook.certManager.enabled }}
+      # P0.7: caBundle must be set manually if cert-manager is disabled
+      # caBundle: <base64-encoded-ca-certificate>
+      {{- end }}
     rules:
       - apiGroups: ["workflow.zen.io"]
         apiVersions: ["v1alpha1"]

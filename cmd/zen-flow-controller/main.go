@@ -58,16 +58,17 @@ var (
 )
 
 var (
-	kubeconfig           = flag.String("kubeconfig", "", "Path to kubeconfig file. If not set, uses in-cluster config")
-	masterURL            = flag.String("master", "", "The address of the Kubernetes API server. Overrides any value in kubeconfig")
-	metricsAddr          = flag.String("metrics-addr", ":8080", "The address the metric endpoint binds to")
-	webhookAddr          = flag.String("webhook-addr", ":9443", "The address the webhook endpoint binds to")
-	webhookCertFile      = flag.String("webhook-cert-file", "/etc/webhook/certs/tls.crt", "Path to TLS certificate file")
-	webhookKeyFile       = flag.String("webhook-key-file", "/etc/webhook/certs/tls.key", "Path to TLS private key file")
-	enableLeaderElection = flag.Bool("enable-leader-election", true, "Enable leader election for HA")
-	leaderElectionNS     = flag.String("leader-election-namespace", "", "Namespace for leader election lease (defaults to POD_NAMESPACE)")
-	enableWebhook        = flag.Bool("enable-webhook", true, "Enable validating webhook server")
-	insecureWebhook      = flag.Bool("insecure-webhook", false, "Allow webhook to start without TLS (testing only, not recommended for production)")
+	kubeconfig              = flag.String("kubeconfig", "", "Path to kubeconfig file. If not set, uses in-cluster config")
+	masterURL               = flag.String("master", "", "The address of the Kubernetes API server. Overrides any value in kubeconfig")
+	metricsAddr             = flag.String("metrics-addr", ":8080", "The address the metric endpoint binds to")
+	webhookAddr             = flag.String("webhook-addr", ":9443", "The address the webhook endpoint binds to")
+	webhookCertFile         = flag.String("webhook-cert-file", "/etc/webhook/certs/tls.crt", "Path to TLS certificate file")
+	webhookKeyFile          = flag.String("webhook-key-file", "/etc/webhook/certs/tls.key", "Path to TLS private key file")
+	enableLeaderElection    = flag.Bool("enable-leader-election", true, "Enable leader election for HA")
+	leaderElectionNS        = flag.String("leader-election-namespace", "", "Namespace for leader election lease (defaults to POD_NAMESPACE)")
+	enableWebhook           = flag.Bool("enable-webhook", true, "Enable validating webhook server")
+	insecureWebhook         = flag.Bool("insecure-webhook", false, "Allow webhook to start without TLS (testing only, not recommended for production)")
+	maxConcurrentReconciles = flag.Int("max-concurrent-reconciles", controller.DefaultMaxConcurrentReconciles, "Maximum number of concurrent reconciles")
 )
 
 //nolint:gocyclo // main function complexity is acceptable for initialization logic
