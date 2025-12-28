@@ -8,16 +8,40 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: zen-flow-controller
+  annotations:
+    # RBAC justification: Controller only needs read access to JobFlows and write access to status
+    rbac.authorization.k8s.io/justification: "Controller watches JobFlows and updates their status subresource. Does not create or delete JobFlows (users do that)."
 rules:
+  # JobFlow CRD: Read-only access + status updates
+  # Justification: Controller watches JobFlows via informer and updates status subresource only
   - apiGroups: ["workflow.zen.io"]
-    resources: ["jobflows", "jobflows/status", "jobflows/finalizers"]
-    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    resources: ["jobflows"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["workflow.zen.io"]
+    resources: ["jobflows/status"]
+    verbs: ["get", "update", "patch"]
+  # Jobs: Read access + create (controller creates Jobs for steps)
+  # Justification: Controller creates Jobs for steps and watches their status. Does not update or delete Jobs (Kubernetes handles that).
   - apiGroups: ["batch"]
     resources: ["jobs"]
-    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    verbs: ["get", "list", "watch", "create"]
+  # Core resources: Read access + create for PVCs/ConfigMaps (from resource templates)
+  # Justification: Controller creates PVCs and ConfigMaps from resource templates. Does not update or delete them.
   - apiGroups: [""]
-    resources: ["persistentvolumeclaims", "configmaps", "secrets", "events", "pods"]
-    verbs: ["get", "list", "watch", "create", "update", "patch"]
+    resources: ["persistentvolumeclaims", "configmaps"]
+    verbs: ["get", "list", "watch", "create"]
+  # Events: Create only (for event recording)
+  # Justification: Controller records events for JobFlow lifecycle. Does not read or update events.
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create"]
+  # Pods: Read-only access (via informer for monitoring)
+  # Justification: Controller may need to read pod status for monitoring. Does not create, update, or delete pods.
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  # Leases: Full access (for leader election)
+  # Justification: Controller uses leader election for HA. Needs full access to leases.
   - apiGroups: ["coordination.k8s.io"]
     resources: ["leases"]
     verbs: ["get", "list", "watch", "create", "update", "patch"]
