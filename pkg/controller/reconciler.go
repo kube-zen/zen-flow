@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"math"
 	"time"
 
 	batchv1 "k8s.io/api/batch/v1"
@@ -114,6 +115,56 @@ func (r *JobFlowReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, nil
 	}
 
+	// Check concurrency policy before processing
+	if err := r.checkConcurrencyPolicy(ctx, jobFlow); err != nil {
+		reconcileLogger.WithError(err).Warning("Concurrency policy violation")
+		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+	}
+
+	// Check flow-level active deadline
+	if exceeded, err := r.checkActiveDeadline(jobFlow); err != nil {
+		reconcileLogger.WithError(err).Error("Failed to check active deadline")
+		return ctrl.Result{}, err
+	} else if exceeded {
+		reconcileLogger.Warning("Active deadline exceeded, marking JobFlow as failed")
+		jobFlow.Status.Phase = v1alpha1.JobFlowPhaseFailed
+		now := metav1.Now()
+		jobFlow.Status.CompletionTime = &now
+		jobFlow.Status.Conditions = append(jobFlow.Status.Conditions, v1alpha1.JobFlowCondition{
+			Type:               "Ready",
+			Status:             corev1.ConditionFalse,
+			LastTransitionTime: metav1.Now(),
+			Reason:             "ActiveDeadlineExceeded",
+			Message:            "JobFlow exceeded active deadline",
+		})
+		if updateErr := r.Status().Update(ctx, jobFlow); updateErr != nil {
+			return ctrl.Result{}, updateErr
+		}
+		return ctrl.Result{}, nil
+	}
+
+	// Check flow-level backoff limit
+	if exceeded, err := r.checkBackoffLimit(jobFlow); err != nil {
+		reconcileLogger.WithError(err).Error("Failed to check backoff limit")
+		return ctrl.Result{}, err
+	} else if exceeded {
+		reconcileLogger.Warning("Backoff limit exceeded, marking JobFlow as failed")
+		jobFlow.Status.Phase = v1alpha1.JobFlowPhaseFailed
+		now := metav1.Now()
+		jobFlow.Status.CompletionTime = &now
+		jobFlow.Status.Conditions = append(jobFlow.Status.Conditions, v1alpha1.JobFlowCondition{
+			Type:               "Ready",
+			Status:             corev1.ConditionFalse,
+			LastTransitionTime: metav1.Now(),
+			Reason:             "BackoffLimitExceeded",
+			Message:            "JobFlow exceeded backoff limit",
+		})
+		if updateErr := r.Status().Update(ctx, jobFlow); updateErr != nil {
+			return ctrl.Result{}, updateErr
+		}
+		return ctrl.Result{}, nil
+	}
+
 	// Initialize if needed
 	if !r.hasInitialized(jobFlow) {
 		reconcileLogger.Info("Initializing JobFlow")
@@ -156,6 +207,22 @@ func (r *JobFlowReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	// Create execution plan
 	executionPlan := r.createExecutionPlan(dagGraph, jobFlow.Status, sortedSteps)
+
+	// Check step timeouts for running steps
+	if err := r.checkStepTimeouts(reconcileCtx, jobFlow); err != nil {
+		reconcileLogger.WithError(err).Error("Failed to check step timeouts")
+		return ctrl.Result{}, err
+	}
+
+	// Handle step retries for failed steps
+	for _, stepStatus := range jobFlow.Status.Steps {
+		if stepStatus.Phase == v1alpha1.StepPhaseFailed {
+			if err := r.handleStepRetry(reconcileCtx, jobFlow, stepStatus.Name); err != nil {
+				reconcileLogger.WithStep(stepStatus.Name).WithError(err).Error("Failed to handle step retry")
+				return ctrl.Result{}, err
+			}
+		}
+	}
 
 	// Execute ready steps
 	for _, stepName := range executionPlan.ReadySteps {
@@ -795,4 +862,239 @@ func (r *JobFlowReconciler) shouldDeleteJobFlow(jobFlow *v1alpha1.JobFlow) (bool
 
 	// Check if TTL has expired
 	return now.After(expirationTime), nil
+}
+
+// checkConcurrencyPolicy checks if concurrent executions are allowed.
+func (r *JobFlowReconciler) checkConcurrencyPolicy(ctx context.Context, jobFlow *v1alpha1.JobFlow) error {
+	policy := "Forbid" // Default
+	if jobFlow.Spec.ExecutionPolicy != nil && jobFlow.Spec.ExecutionPolicy.ConcurrencyPolicy != "" {
+		policy = jobFlow.Spec.ExecutionPolicy.ConcurrencyPolicy
+	}
+
+	if policy == "Allow" {
+		return nil // Allow concurrent executions
+	}
+
+	// For "Forbid" or "Replace", check for other running JobFlows with the same name
+	jobFlowList := &v1alpha1.JobFlowList{}
+	if err := r.List(ctx, jobFlowList, client.InNamespace(jobFlow.Namespace)); err != nil {
+		return jferrors.WithJobFlow(jferrors.Wrapf(err, "list_failed", "failed to list JobFlows"), jobFlow.Namespace, jobFlow.Name)
+	}
+
+	for _, existing := range jobFlowList.Items {
+		// Skip self
+		if existing.UID == jobFlow.UID {
+			continue
+		}
+
+		// Check if same name and running
+		if existing.Name == jobFlow.Name && existing.Status.Phase == v1alpha1.JobFlowPhaseRunning {
+			if policy == "Replace" {
+				// Delete the existing JobFlow
+				if err := r.Delete(ctx, &existing); err != nil {
+					return jferrors.WithJobFlow(jferrors.Wrapf(err, "delete_failed", "failed to delete existing JobFlow"), jobFlow.Namespace, jobFlow.Name)
+				}
+				return nil
+			}
+			// Forbid: return error
+			return jferrors.WithJobFlow(jferrors.New("concurrency_forbidden", fmt.Sprintf("concurrent execution forbidden for JobFlow %s", jobFlow.Name)), jobFlow.Namespace, jobFlow.Name)
+		}
+	}
+
+	return nil
+}
+
+// checkActiveDeadline checks if the JobFlow has exceeded its active deadline.
+func (r *JobFlowReconciler) checkActiveDeadline(jobFlow *v1alpha1.JobFlow) (bool, error) {
+	if jobFlow.Spec.ExecutionPolicy == nil || jobFlow.Spec.ExecutionPolicy.ActiveDeadlineSeconds == nil {
+		return false, nil // No deadline set
+	}
+
+	if jobFlow.Status.StartTime == nil {
+		return false, nil // Not started yet
+	}
+
+	deadlineSeconds := *jobFlow.Spec.ExecutionPolicy.ActiveDeadlineSeconds
+	deadlineTime := jobFlow.Status.StartTime.Add(time.Duration(deadlineSeconds) * time.Second)
+	now := time.Now()
+
+	return now.After(deadlineTime), nil
+}
+
+// checkBackoffLimit checks if the JobFlow has exceeded its backoff limit.
+func (r *JobFlowReconciler) checkBackoffLimit(jobFlow *v1alpha1.JobFlow) (bool, error) {
+	limit := int32(6) // Default
+	if jobFlow.Spec.ExecutionPolicy != nil && jobFlow.Spec.ExecutionPolicy.BackoffLimit != nil {
+		limit = *jobFlow.Spec.ExecutionPolicy.BackoffLimit
+	}
+
+	// Count total retries across all steps
+	totalRetries := int32(0)
+	for _, stepStatus := range jobFlow.Status.Steps {
+		totalRetries += stepStatus.RetryCount
+	}
+
+	return totalRetries > limit, nil
+}
+
+// checkStepTimeouts checks if any running steps have exceeded their timeout.
+func (r *JobFlowReconciler) checkStepTimeouts(ctx context.Context, jobFlow *v1alpha1.JobFlow) error {
+	logger := logging.FromContext(ctx).WithJobFlow(jobFlow.Namespace, jobFlow.Name)
+
+	for i := range jobFlow.Status.Steps {
+		stepStatus := &jobFlow.Status.Steps[i]
+		if stepStatus.Phase != v1alpha1.StepPhaseRunning {
+			continue
+		}
+
+		// Find step spec
+		var stepSpec *v1alpha1.Step
+		for j := range jobFlow.Spec.Steps {
+			if jobFlow.Spec.Steps[j].Name == stepStatus.Name {
+				stepSpec = &jobFlow.Spec.Steps[j]
+				break
+			}
+		}
+
+		if stepSpec == nil || stepSpec.TimeoutSeconds == nil {
+			continue // No timeout set
+		}
+
+		if stepStatus.StartTime == nil {
+			continue // Not started yet
+		}
+
+		timeoutSeconds := *stepSpec.TimeoutSeconds
+		timeoutTime := stepStatus.StartTime.Add(time.Duration(timeoutSeconds) * time.Second)
+		now := time.Now()
+
+		if now.After(timeoutTime) {
+			logger.WithStep(stepStatus.Name).Warning("Step timeout exceeded")
+			// Mark step as failed due to timeout
+			stepStatus.Phase = v1alpha1.StepPhaseFailed
+			now := metav1.Now()
+			stepStatus.CompletionTime = &now
+			stepStatus.Message = fmt.Sprintf("Step exceeded timeout of %d seconds", timeoutSeconds)
+
+			// Delete the job if it exists
+			if stepStatus.JobRef != nil {
+				job := &batchv1.Job{}
+				jobKey := types.NamespacedName{Namespace: jobFlow.Namespace, Name: stepStatus.JobRef.Name}
+				if err := r.Get(ctx, jobKey, job); err == nil {
+					if err := r.Delete(ctx, job); err != nil {
+						logger.WithStep(stepStatus.Name).WithError(err).Error("Failed to delete timed-out job")
+					}
+				}
+			}
+
+			// Check if step should continue on failure
+			if stepSpec.ContinueOnFailure {
+				r.EventRecorder.Eventf(jobFlow, corev1.EventTypeWarning, "StepTimeout", "Step %s exceeded timeout but continuing", stepStatus.Name)
+			} else {
+				// Mark flow as failed
+				jobFlow.Status.Phase = v1alpha1.JobFlowPhaseFailed
+				now := metav1.Now()
+				jobFlow.Status.CompletionTime = &now
+				r.EventRecorder.Eventf(jobFlow, corev1.EventTypeWarning, "StepTimeout", "Step %s exceeded timeout, marking JobFlow as failed", stepStatus.Name)
+			}
+
+			return r.Status().Update(ctx, jobFlow)
+		}
+	}
+
+	return nil
+}
+
+// handleStepRetry handles retrying a failed step based on RetryPolicy.
+func (r *JobFlowReconciler) handleStepRetry(ctx context.Context, jobFlow *v1alpha1.JobFlow, stepName string) error {
+	logger := logging.FromContext(ctx).WithJobFlow(jobFlow.Namespace, jobFlow.Name).WithStep(stepName)
+
+	// Find step spec
+	var stepSpec *v1alpha1.Step
+	for i := range jobFlow.Spec.Steps {
+		if jobFlow.Spec.Steps[i].Name == stepName {
+			stepSpec = &jobFlow.Spec.Steps[i]
+			break
+		}
+	}
+	if stepSpec == nil || stepSpec.RetryPolicy == nil {
+		return nil // No retry policy
+	}
+
+	stepStatus := r.getStepStatus(jobFlow.Status, stepName)
+	if stepStatus == nil {
+		return jferrors.WithStep(jferrors.WithJobFlow(jferrors.New("step_status_not_found", fmt.Sprintf("step status not found: %s", stepName)), jobFlow.Namespace, jobFlow.Name), stepName)
+	}
+
+	// Check if step has failed
+	if stepStatus.Phase != v1alpha1.StepPhaseFailed {
+		return nil // Not failed, no retry needed
+	}
+
+	// Check retry limit
+	limit := int32(3) // Default
+	if stepSpec.RetryPolicy.Limit > 0 {
+		limit = stepSpec.RetryPolicy.Limit
+	}
+
+	if stepStatus.RetryCount >= limit {
+		logger.Warning("Step retry limit exceeded")
+		return nil // Retry limit exceeded
+	}
+
+	// Calculate backoff delay
+	backoffDuration := r.calculateBackoff(stepSpec.RetryPolicy, stepStatus.RetryCount)
+
+	// Check if enough time has passed since last failure
+	if stepStatus.CompletionTime != nil {
+		nextRetryTime := stepStatus.CompletionTime.Add(backoffDuration)
+		if time.Now().Before(nextRetryTime) {
+			// Not time to retry yet
+			return nil
+		}
+	}
+
+	// Increment retry count
+	stepStatus.RetryCount++
+	stepStatus.Phase = v1alpha1.StepPhasePending
+	stepStatus.StartTime = nil
+	stepStatus.CompletionTime = nil
+	stepStatus.JobRef = nil
+	stepStatus.Message = ""
+
+	logger.WithField("retry_count", stepStatus.RetryCount).Info("Retrying step")
+	r.EventRecorder.Eventf(jobFlow, corev1.EventTypeNormal, "StepRetry", "Retrying step %s (attempt %d)", stepName, stepStatus.RetryCount)
+
+	return r.Status().Update(ctx, jobFlow)
+}
+
+// calculateBackoff calculates the backoff duration based on the retry policy.
+func (r *JobFlowReconciler) calculateBackoff(retryPolicy *v1alpha1.RetryPolicy, retryCount int32) time.Duration {
+	if retryPolicy.Backoff == nil {
+		// Default exponential backoff: 1s, 2s, 4s, 8s...
+		return time.Duration(1<<retryCount) * time.Second
+	}
+
+	backoff := retryPolicy.Backoff
+	baseDuration, err := time.ParseDuration(backoff.Duration)
+	if err != nil {
+		// Default to 1s if parsing fails
+		baseDuration = time.Second
+	}
+
+	switch backoff.Type {
+	case "Fixed":
+		return baseDuration
+	case "Linear":
+		return baseDuration * time.Duration(retryCount+1)
+	case "Exponential":
+		factor := 2.0 // Default factor
+		if backoff.Factor != nil {
+			factor = *backoff.Factor
+		}
+		return time.Duration(float64(baseDuration) * math.Pow(factor, float64(retryCount)))
+	default:
+		// Default exponential
+		return baseDuration * time.Duration(1<<retryCount)
+	}
 }
