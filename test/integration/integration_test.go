@@ -40,7 +40,9 @@ import (
 
 func setupTestController(t *testing.T) (*controller.JobFlowController, *fake.FakeDynamicClient, *kubefake.Clientset) {
 	scheme := runtime.NewScheme()
-	v1alpha1.AddToScheme(scheme)
+	if err := v1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatalf("Failed to add scheme: %v", err)
+	}
 
 	dynamicClient := fake.NewSimpleDynamicClient(scheme)
 	kubeClient := kubefake.NewSimpleClientset()

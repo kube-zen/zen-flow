@@ -169,9 +169,9 @@ func TestGetCorrelationID_NoID(t *testing.T) {
 }
 
 func TestGetCorrelationID_NilContext(t *testing.T) {
-	id := GetCorrelationID(nil)
+	id := GetCorrelationID(context.TODO())
 	if id != "" {
-		t.Errorf("Expected empty correlation ID for nil context, got '%s'", id)
+		t.Errorf("Expected empty correlation ID for TODO context, got '%s'", id)
 	}
 }
 
