@@ -102,20 +102,36 @@ Directed Acyclic Graph engine:
    ↓
 4. Check for cycles
    ↓
-5. Create execution plan (topological sort)
+5. Initialize JobFlow if needed
    ↓
-6. For each ready step:
-   - Check if Job exists
-   - If not, create Job from template
-   - Monitor Job status
+6. Build DAG from steps
    ↓
-7. Update step status
+7. Check for cycles
    ↓
-8. Check if all steps complete
+8. Refresh step statuses from Jobs
    ↓
-9. Update JobFlow phase
+9. Check step timeouts
    ↓
-10. Emit metrics and events
+10. Handle step retries
+   ↓
+11. Create execution plan (topological sort)
+   ↓
+12. For each ready step:
+    - Evaluate "when" conditions
+    - Handle step inputs (artifacts/parameters)
+    - Check if Job exists
+    - If not, create Job from template
+    - Monitor Job status
+    ↓
+13. Update step status (check pod failure policy)
+   ↓
+14. Handle step outputs (artifacts/parameters)
+   ↓
+15. Update JobFlow status
+   ↓
+16. Check TTL cleanup if finished
+   ↓
+17. Emit metrics and events
 ```
 
 ### 5. Step Execution
