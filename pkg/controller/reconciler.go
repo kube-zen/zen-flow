@@ -1,0 +1,753 @@
+/*
+Copyright 2025 Kube-ZEN Contributors
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package controller
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	batchv1 "k8s.io/api/batch/v1"
+	corev1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/log"
+
+	"github.com/kube-zen/zen-flow/pkg/api/v1alpha1"
+	"github.com/kube-zen/zen-flow/pkg/controller/dag"
+	"github.com/kube-zen/zen-flow/pkg/controller/metrics"
+	jferrors "github.com/kube-zen/zen-flow/pkg/errors"
+	"github.com/kube-zen/zen-flow/pkg/logging"
+)
+
+// JobFlowReconciler reconciles a JobFlow object
+type JobFlowReconciler struct {
+	client.Client
+	Scheme          *runtime.Scheme
+	MetricsRecorder *metrics.Recorder
+	EventRecorder   *EventRecorder
+}
+
+// NewJobFlowReconciler creates a new JobFlowReconciler
+func NewJobFlowReconciler(mgr ctrl.Manager, metricsRecorder *metrics.Recorder, eventRecorder *EventRecorder) *JobFlowReconciler {
+	return &JobFlowReconciler{
+		Client:          mgr.GetClient(),
+		Scheme:          mgr.GetScheme(),
+		MetricsRecorder: metricsRecorder,
+		EventRecorder:   eventRecorder,
+	}
+}
+
+// Reconcile is part of the main kubernetes reconciliation loop
+// +kubebuilder:rbac:groups=workflow.zen.io,resources=jobflows,verbs=get;list;watch
+// +kubebuilder:rbac:groups=workflow.zen.io,resources=jobflows/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create
+// +kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch;create
+// +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create
+// +kubebuilder:rbac:groups="",resources=events,verbs=create
+// +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch
+func (r *JobFlowReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	logger := log.FromContext(ctx)
+	logger = logger.WithValues("jobflow", req.NamespacedName)
+	ctx = log.IntoContext(ctx, logger)
+
+	// Add correlation ID for this reconciliation
+	correlationID := logging.GenerateCorrelationID()
+	reconcileCtx := logging.WithCorrelationID(ctx, correlationID)
+	reconcileLogger := logging.FromContext(reconcileCtx).WithJobFlow(req.Namespace, req.Name)
+
+	reconcileStart := time.Now()
+	defer func() {
+		duration := time.Since(reconcileStart)
+		r.MetricsRecorder.RecordReconciliationDuration(duration.Seconds())
+		reconcileLogger.WithDuration(duration).V(4).Info("Reconciliation completed")
+	}()
+
+	// Fetch the JobFlow instance
+	jobFlow := &v1alpha1.JobFlow{}
+	if err := r.Get(ctx, req.NamespacedName, jobFlow); err != nil {
+		if k8serrors.IsNotFound(err) {
+			// JobFlow was deleted, nothing to do
+			reconcileLogger.V(4).Info("JobFlow was deleted, skipping reconciliation")
+			return ctrl.Result{}, nil
+		}
+		// Error reading the object - requeue the request
+		reconcileLogger.WithError(err).Error("Failed to get JobFlow")
+		return ctrl.Result{}, err
+	}
+
+	// Validate JobFlow
+	if err := r.validateJobFlow(jobFlow); err != nil {
+		reconcileLogger.WithError(err).Warning("JobFlow validation failed")
+		// P0.2: Persist validation failure status
+		jobFlow.Status.Phase = v1alpha1.JobFlowPhaseFailed
+		jobFlow.Status.Conditions = append(jobFlow.Status.Conditions, v1alpha1.JobFlowCondition{
+			Type:               "Ready",
+			Status:             corev1.ConditionFalse,
+			LastTransitionTime: metav1.Now(),
+			Reason:             "ValidationFailed",
+			Message:            err.Error(),
+		})
+		if updateErr := r.Status().Update(ctx, jobFlow); updateErr != nil {
+			reconcileLogger.WithError(updateErr).Error("Failed to update JobFlow status")
+			return ctrl.Result{}, updateErr
+		}
+		return ctrl.Result{}, nil
+	}
+
+	// Initialize if needed
+	if !r.hasInitialized(jobFlow) {
+		reconcileLogger.Info("Initializing JobFlow")
+		if err := r.initializeJobFlow(reconcileCtx, jobFlow); err != nil {
+			return ctrl.Result{}, err
+		}
+		return ctrl.Result{}, nil
+	}
+
+	// Build DAG
+	dagGraph := dag.BuildDAG(jobFlow.Spec.Steps)
+
+	// P0.4: Check for cycles in DAG
+	sortedSteps, err := dagGraph.TopologicalSort()
+	if err != nil {
+		reconcileLogger.WithError(err).Error("DAG cycle detected")
+		jobFlow.Status.Phase = v1alpha1.JobFlowPhaseFailed
+		jobFlow.Status.Conditions = append(jobFlow.Status.Conditions, v1alpha1.JobFlowCondition{
+			Type:               "Ready",
+			Status:             corev1.ConditionFalse,
+			LastTransitionTime: metav1.Now(),
+			Reason:             "DAGCycle",
+			Message:            err.Error(),
+		})
+		if updateErr := r.Status().Update(ctx, jobFlow); updateErr != nil {
+			return ctrl.Result{}, updateErr
+		}
+		return ctrl.Result{}, nil
+	}
+
+	// P0.1: Refresh step statuses from Jobs for any step with JobRef (Running/Pending-with-JobRef)
+	if err := r.refreshStepStatuses(reconcileCtx, jobFlow); err != nil {
+		if r.isRetryable(err) {
+			reconcileLogger.WithError(err).V(4).Info("Retryable error refreshing step statuses, will retry")
+			return ctrl.Result{Requeue: true}, err
+		}
+		reconcileLogger.WithError(err).Error("Failed to refresh step statuses")
+		// Continue with execution plan despite refresh errors
+	}
+
+	// Create execution plan
+	executionPlan := r.createExecutionPlan(dagGraph, jobFlow.Status, sortedSteps)
+
+	// Execute ready steps
+	for _, stepName := range executionPlan.ReadySteps {
+		reconcileLogger.WithStep(stepName).V(4).Info("Executing step")
+		if err := r.executeStep(reconcileCtx, jobFlow, stepName); err != nil {
+			if r.isRetryable(err) {
+				reconcileLogger.WithStep(stepName).WithError(err).V(4).Info("Retryable error, will retry")
+				return ctrl.Result{Requeue: true}, err
+			}
+			if err := r.handleStepFailure(reconcileCtx, jobFlow, stepName, err); err != nil {
+				return ctrl.Result{}, err
+			}
+		}
+	}
+
+	// Update status
+	if err := r.updateJobFlowStatus(ctx, jobFlow, executionPlan); err != nil {
+		reconcileLogger.WithError(err).Error("Failed to update JobFlow status")
+		return ctrl.Result{}, err
+	}
+
+	return ctrl.Result{}, nil
+}
+
+// SetupWithManager sets up the controller with the Manager.
+func (r *JobFlowReconciler) SetupWithManager(b *builder.Builder) error {
+	return b.Complete(r)
+}
+
+// validateJobFlow validates a JobFlow.
+func (r *JobFlowReconciler) validateJobFlow(jobFlow *v1alpha1.JobFlow) error {
+	if len(jobFlow.Spec.Steps) == 0 {
+		return jferrors.WithJobFlow(jferrors.New("validation_failed", "JobFlow must have at least one step"), jobFlow.Namespace, jobFlow.Name)
+	}
+
+	stepNames := make(map[string]bool)
+	for _, step := range jobFlow.Spec.Steps {
+		if step.Name == "" {
+			return jferrors.WithStep(jferrors.WithJobFlow(jferrors.New("validation_failed", "step name cannot be empty"), jobFlow.Namespace, jobFlow.Name), step.Name)
+		}
+		if stepNames[step.Name] {
+			return jferrors.WithStep(jferrors.WithJobFlow(jferrors.New("validation_failed", fmt.Sprintf("duplicate step name: %s", step.Name)), jobFlow.Namespace, jobFlow.Name), step.Name)
+		}
+		stepNames[step.Name] = true
+
+		// Validate dependencies
+		for _, dep := range step.Dependencies {
+			if !stepNames[dep] && dep != "" {
+				// Check if dependency exists in spec
+				found := false
+				for _, s := range jobFlow.Spec.Steps {
+					if s.Name == dep {
+						found = true
+						break
+					}
+				}
+				if !found {
+					return jferrors.WithStep(jferrors.WithJobFlow(jferrors.New("validation_failed", fmt.Sprintf("step %s has invalid dependency: %s", step.Name, dep)), jobFlow.Namespace, jobFlow.Name), step.Name)
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+// hasInitialized checks if the JobFlow has been initialized.
+func (r *JobFlowReconciler) hasInitialized(jobFlow *v1alpha1.JobFlow) bool {
+	return jobFlow.Status.Phase != "" || len(jobFlow.Status.Steps) > 0
+}
+
+// initializeJobFlow initializes a JobFlow.
+func (r *JobFlowReconciler) initializeJobFlow(ctx context.Context, jobFlow *v1alpha1.JobFlow) error {
+	now := metav1.Now()
+	jobFlow.Status.Phase = v1alpha1.JobFlowPhasePending
+	jobFlow.Status.StartTime = &now
+	jobFlow.Status.Progress = &v1alpha1.ProgressStatus{
+		TotalSteps: int32(len(jobFlow.Spec.Steps)),
+	}
+
+	// Initialize step statuses
+	jobFlow.Status.Steps = make([]v1alpha1.StepStatus, len(jobFlow.Spec.Steps))
+	for i, step := range jobFlow.Spec.Steps {
+		jobFlow.Status.Steps[i] = v1alpha1.StepStatus{
+			Name:  step.Name,
+			Phase: v1alpha1.StepPhasePending,
+		}
+	}
+
+	// Create resource templates if specified
+	if jobFlow.Spec.ResourceTemplates != nil {
+		if err := r.createResourceTemplates(ctx, jobFlow); err != nil {
+			return err
+		}
+	}
+
+	return r.Status().Update(ctx, jobFlow)
+}
+
+// createResourceTemplates creates resource templates for the JobFlow.
+func (r *JobFlowReconciler) createResourceTemplates(ctx context.Context, jobFlow *v1alpha1.JobFlow) error {
+	if jobFlow.Spec.ResourceTemplates == nil {
+		return nil
+	}
+
+	logger := logging.FromContext(ctx).WithJobFlow(jobFlow.Namespace, jobFlow.Name)
+
+	// Create PVCs
+	for _, pvcTemplate := range jobFlow.Spec.ResourceTemplates.VolumeClaimTemplates {
+		pvc := pvcTemplate.DeepCopy()
+		pvc.Name = fmt.Sprintf("%s-%s", jobFlow.Name, pvc.Name)
+		pvc.Namespace = jobFlow.Namespace
+		pvc.OwnerReferences = []metav1.OwnerReference{
+			*metav1.NewControllerRef(jobFlow, v1alpha1.SchemeGroupVersion.WithKind("JobFlow")),
+		}
+
+		if err := r.Create(ctx, pvc); err != nil {
+			if !k8serrors.IsAlreadyExists(err) {
+				return jferrors.WithJobFlow(jferrors.Wrapf(err, "pvc_creation_failed", "failed to create PVC %s", pvc.Name), jobFlow.Namespace, jobFlow.Name)
+			}
+		} else {
+			logger.WithField("pvc_name", pvc.Name).V(4).Info("Created PVC for JobFlow")
+		}
+	}
+
+	// Create ConfigMaps
+	for _, cmTemplate := range jobFlow.Spec.ResourceTemplates.ConfigMapTemplates {
+		cm := cmTemplate.DeepCopy()
+		cm.Name = fmt.Sprintf("%s-%s", jobFlow.Name, cm.Name)
+		cm.Namespace = jobFlow.Namespace
+		cm.OwnerReferences = []metav1.OwnerReference{
+			*metav1.NewControllerRef(jobFlow, v1alpha1.SchemeGroupVersion.WithKind("JobFlow")),
+		}
+
+		if err := r.Create(ctx, cm); err != nil {
+			if !k8serrors.IsAlreadyExists(err) {
+				return jferrors.WithJobFlow(jferrors.Wrapf(err, "configmap_creation_failed", "failed to create ConfigMap %s", cm.Name), jobFlow.Namespace, jobFlow.Name)
+			}
+		} else {
+			logger.WithField("configmap_name", cm.Name).V(4).Info("Created ConfigMap for JobFlow")
+		}
+	}
+
+	return nil
+}
+
+// refreshStepStatuses refreshes step statuses from Jobs for any step with a JobRef.
+// P0.1: This ensures Running steps are reconciled to completion.
+func (r *JobFlowReconciler) refreshStepStatuses(ctx context.Context, jobFlow *v1alpha1.JobFlow) error {
+	logger := logging.FromContext(ctx).WithJobFlow(jobFlow.Namespace, jobFlow.Name)
+
+	for i := range jobFlow.Status.Steps {
+		stepStatus := &jobFlow.Status.Steps[i]
+		// Only refresh steps that have a JobRef (Running or Pending-with-JobRef)
+		if stepStatus.JobRef == nil {
+			continue
+		}
+
+		// Get the Job to check its current status
+		job := &batchv1.Job{}
+		jobKey := types.NamespacedName{Namespace: jobFlow.Namespace, Name: stepStatus.JobRef.Name}
+		if err := r.Get(ctx, jobKey, job); err != nil {
+			if k8serrors.IsNotFound(err) {
+				// Job was deleted, mark step as failed
+				logger.WithStep(stepStatus.Name).Warning("Job not found, marking step as failed")
+				stepStatus.Phase = v1alpha1.StepPhaseFailed
+				now := metav1.Now()
+				stepStatus.CompletionTime = &now
+				stepStatus.Message = fmt.Sprintf("Job %s not found", stepStatus.JobRef.Name)
+				continue
+			}
+			return jferrors.WithStep(jferrors.WithJobFlow(jferrors.Wrapf(err, "job_get_failed", "failed to get Job %s", stepStatus.JobRef.Name), jobFlow.Namespace, jobFlow.Name), stepStatus.Name)
+		}
+
+		// Update step status based on job status (in memory only, don't write to API yet)
+		r.refreshStepStatusFromJob(jobFlow, stepStatus.Name, job)
+	}
+
+	return nil
+}
+
+// refreshStepStatusFromJob updates step status in memory based on job status.
+// This is used during refresh to avoid multiple API writes.
+// P0.8: Tracks phase transitions properly.
+func (r *JobFlowReconciler) refreshStepStatusFromJob(jobFlow *v1alpha1.JobFlow, stepName string, job *batchv1.Job) {
+	stepStatus := r.getStepStatus(jobFlow.Status, stepName)
+	if stepStatus == nil {
+		return
+	}
+
+	// Update phase based on job conditions
+	oldPhase := stepStatus.Phase
+	newPhase := stepStatus.Phase
+
+	if job.Status.Succeeded > 0 {
+		newPhase = v1alpha1.StepPhaseSucceeded
+		now := metav1.Now()
+		stepStatus.CompletionTime = &now
+	} else if job.Status.Failed > 0 {
+		newPhase = v1alpha1.StepPhaseFailed
+		now := metav1.Now()
+		stepStatus.CompletionTime = &now
+	} else {
+		newPhase = v1alpha1.StepPhaseRunning
+	}
+
+	stepStatus.Phase = newPhase
+	if oldPhase != newPhase {
+		r.MetricsRecorder.RecordStepPhaseTransition(jobFlow.Name, stepName, oldPhase, newPhase)
+	}
+}
+
+// createExecutionPlan creates an execution plan based on the DAG and current status.
+func (r *JobFlowReconciler) createExecutionPlan(dagGraph *dag.Graph, status v1alpha1.JobFlowStatus, sortedSteps []string) *ExecutionPlan {
+	plan := &ExecutionPlan{}
+
+	// P0.3: Find completed steps (Succeeded OR Failed with ContinueOnFailure)
+	completedSteps := make(map[string]bool)
+	stepSpecs := make(map[string]*v1alpha1.Step)
+
+	// Build step spec map for ContinueOnFailure lookup from DAG graph
+	for _, stepName := range sortedSteps {
+		node := dagGraph.GetStep(stepName)
+		if node != nil && node.Step != nil {
+			stepSpecs[stepName] = node.Step
+		}
+	}
+
+	// Mark steps as completed based on their phase and ContinueOnFailure setting
+	for i := range status.Steps {
+		stepStatus := &status.Steps[i]
+
+		// Mark as completed if succeeded
+		if stepStatus.Phase == v1alpha1.StepPhaseSucceeded {
+			completedSteps[stepStatus.Name] = true
+		} else if stepStatus.Phase == v1alpha1.StepPhaseFailed {
+			// P0.3: Failed steps complete if ContinueOnFailure is true
+			if spec, ok := stepSpecs[stepStatus.Name]; ok && spec.ContinueOnFailure {
+				completedSteps[stepStatus.Name] = true
+			}
+		}
+	}
+
+	// Find steps that are ready to execute
+	for _, stepName := range sortedSteps {
+		stepStatus := r.getStepStatus(status, stepName)
+		if stepStatus != nil && stepStatus.Phase != v1alpha1.StepPhasePending {
+			continue // Already started or completed
+		}
+
+		// Check if dependencies are satisfied
+		step := dagGraph.GetStep(stepName)
+		if step == nil {
+			continue
+		}
+
+		ready := true
+		for _, dep := range step.Dependencies {
+			if !completedSteps[dep] {
+				ready = false
+				break
+			}
+		}
+
+		if ready {
+			plan.ReadySteps = append(plan.ReadySteps, stepName)
+		}
+	}
+
+	return plan
+}
+
+// getStepStatus gets the status for a step.
+func (r *JobFlowReconciler) getStepStatus(status v1alpha1.JobFlowStatus, stepName string) *v1alpha1.StepStatus {
+	for i := range status.Steps {
+		if status.Steps[i].Name == stepName {
+			return &status.Steps[i]
+		}
+	}
+	return nil
+}
+
+// executeStep executes a step.
+func (r *JobFlowReconciler) executeStep(ctx context.Context, jobFlow *v1alpha1.JobFlow, stepName string) error {
+	logger := logging.FromContext(ctx).WithJobFlow(jobFlow.Namespace, jobFlow.Name).WithStep(stepName)
+
+	// Find step spec
+	var stepSpec *v1alpha1.Step
+	for i := range jobFlow.Spec.Steps {
+		if jobFlow.Spec.Steps[i].Name == stepName {
+			stepSpec = &jobFlow.Spec.Steps[i]
+			break
+		}
+	}
+	if stepSpec == nil {
+		return jferrors.WithStep(jferrors.WithJobFlow(jferrors.New("step_not_found", fmt.Sprintf("step not found: %s", stepName)), jobFlow.Namespace, jobFlow.Name), stepName)
+	}
+
+	// Get step status
+	stepStatus := r.getStepStatus(jobFlow.Status, stepName)
+	if stepStatus == nil {
+		return jferrors.WithStep(jferrors.WithJobFlow(jferrors.New("step_status_not_found", fmt.Sprintf("step status not found: %s", stepName)), jobFlow.Namespace, jobFlow.Name), stepName)
+	}
+
+	// Check if step already has a job
+	if stepStatus.JobRef != nil {
+		// Job already exists, check its status
+		job := &batchv1.Job{}
+		jobKey := types.NamespacedName{Namespace: jobFlow.Namespace, Name: stepStatus.JobRef.Name}
+		if err := r.Get(ctx, jobKey, job); err != nil {
+			if !k8serrors.IsNotFound(err) {
+				return jferrors.WithJob(jferrors.WithStep(jferrors.WithJobFlow(jferrors.Wrapf(err, "job_get_failed", "failed to get Job %s", stepStatus.JobRef.Name), jobFlow.Namespace, jobFlow.Name), stepName), jobFlow.Namespace, stepStatus.JobRef.Name)
+			}
+		} else {
+			// Update step status based on job status
+			logger.WithJob(jobFlow.Namespace, stepStatus.JobRef.Name).V(4).Info("Job already exists, updating step status")
+			return r.updateStepStatusFromJob(ctx, jobFlow, stepName, job)
+		}
+	}
+
+	// Create job for step
+	job, err := r.createJobForStep(ctx, jobFlow, stepSpec)
+	if err != nil {
+		return jferrors.WithStep(jferrors.WithJobFlow(jferrors.Wrapf(err, "job_creation_failed", "failed to create Job for step"), jobFlow.Namespace, jobFlow.Name), stepName)
+	}
+
+	// Update step status
+	stepStatus.Phase = v1alpha1.StepPhaseRunning
+	stepStatus.StartTime = &metav1.Time{Time: time.Now()}
+	stepStatus.JobRef = &corev1.ObjectReference{
+		APIVersion: batchv1.SchemeGroupVersion.String(),
+		Kind:       "Job",
+		Name:       job.Name,
+		Namespace:  job.Namespace,
+		UID:        job.UID,
+	}
+
+	logger.WithJob(jobFlow.Namespace, job.Name).Info("Created Job for step")
+	r.EventRecorder.Eventf(jobFlow, corev1.EventTypeNormal, "StepCreated", "Created Job for step %s", stepName)
+	return r.Status().Update(ctx, jobFlow)
+}
+
+// createJobForStep creates a Kubernetes Job for a step.
+func (r *JobFlowReconciler) createJobForStep(ctx context.Context, jobFlow *v1alpha1.JobFlow, step *v1alpha1.Step) (*batchv1.Job, error) {
+	logger := logging.FromContext(ctx).WithJobFlow(jobFlow.Namespace, jobFlow.Name).WithStep(step.Name)
+
+	// Get job template from step
+	jobTemplate, err := step.GetJobTemplate()
+	if err != nil {
+		return nil, jferrors.WithStep(jferrors.WithJobFlow(jferrors.Wrapf(err, "template_parse_failed", "failed to get job template"), jobFlow.Namespace, jobFlow.Name), step.Name)
+	}
+
+	// Create job
+	job := jobTemplate.DeepCopy()
+	job.Name = fmt.Sprintf("%s-%s-%s", jobFlow.Name, step.Name, string(jobFlow.UID)[:8])
+	job.Namespace = jobFlow.Namespace
+
+	// Set owner reference
+	job.OwnerReferences = []metav1.OwnerReference{
+		*metav1.NewControllerRef(jobFlow, v1alpha1.SchemeGroupVersion.WithKind("JobFlow")),
+	}
+
+	// Add labels
+	if job.Labels == nil {
+		job.Labels = make(map[string]string)
+	}
+	job.Labels["workflow.zen.io/step"] = step.Name
+	job.Labels["workflow.zen.io/flow"] = jobFlow.Name
+	job.Labels["workflow.zen.io/managed-by"] = "zen-flow"
+
+	// Add step metadata labels/annotations
+	if step.Metadata != nil {
+		for k, v := range step.Metadata.Labels {
+			job.Labels[k] = v
+		}
+		if len(step.Metadata.Annotations) > 0 {
+			if job.Annotations == nil {
+				job.Annotations = make(map[string]string)
+			}
+			for k, v := range step.Metadata.Annotations {
+				job.Annotations[k] = v
+			}
+		}
+	}
+
+	if err := r.Create(ctx, job); err != nil {
+		return nil, jferrors.WithStep(jferrors.WithJobFlow(jferrors.Wrapf(err, "job_create_failed", "failed to create Job"), jobFlow.Namespace, jobFlow.Name), step.Name)
+	}
+
+	logger.WithJob(jobFlow.Namespace, job.Name).V(4).Info("Job created successfully")
+	return job, nil
+}
+
+// updateStepStatusFromJob updates step status based on job status.
+func (r *JobFlowReconciler) updateStepStatusFromJob(ctx context.Context, jobFlow *v1alpha1.JobFlow, stepName string, job *batchv1.Job) error {
+	logger := logging.FromContext(ctx).WithJobFlow(jobFlow.Namespace, jobFlow.Name).WithStep(stepName).WithJob(jobFlow.Namespace, job.Name)
+
+	stepStatus := r.getStepStatus(jobFlow.Status, stepName)
+	if stepStatus == nil {
+		return jferrors.WithStep(jferrors.WithJobFlow(jferrors.New("step_status_not_found", fmt.Sprintf("step status not found: %s", stepName)), jobFlow.Namespace, jobFlow.Name), stepName)
+	}
+
+	// Update phase based on job conditions
+	// P0.8: Track phase transitions properly
+	oldPhase := stepStatus.Phase
+	newPhase := stepStatus.Phase
+
+	if job.Status.Succeeded > 0 {
+		newPhase = v1alpha1.StepPhaseSucceeded
+		now := metav1.Now()
+		stepStatus.CompletionTime = &now
+		logger.Info("Step succeeded")
+	} else if job.Status.Failed > 0 {
+		newPhase = v1alpha1.StepPhaseFailed
+		now := metav1.Now()
+		stepStatus.CompletionTime = &now
+		logger.Warning("Step failed")
+	} else {
+		newPhase = v1alpha1.StepPhaseRunning
+		logger.V(4).Info("Step still running")
+	}
+
+	stepStatus.Phase = newPhase
+	if oldPhase != newPhase {
+		r.MetricsRecorder.RecordStepPhaseTransition(jobFlow.Name, stepName, oldPhase, newPhase)
+	}
+
+	return r.Status().Update(ctx, jobFlow)
+}
+
+// handleStepFailure handles a step failure.
+func (r *JobFlowReconciler) handleStepFailure(ctx context.Context, jobFlow *v1alpha1.JobFlow, stepName string, err error) error {
+	logger := logging.FromContext(ctx).WithJobFlow(jobFlow.Namespace, jobFlow.Name).WithStep(stepName).WithError(err)
+
+	stepStatus := r.getStepStatus(jobFlow.Status, stepName)
+	if stepStatus == nil {
+		return jferrors.WithStep(jferrors.WithJobFlow(jferrors.New("step_status_not_found", fmt.Sprintf("step status not found: %s", stepName)), jobFlow.Namespace, jobFlow.Name), stepName)
+	}
+
+	// Find step spec to check ContinueOnFailure
+	var stepSpec *v1alpha1.Step
+	for i := range jobFlow.Spec.Steps {
+		if jobFlow.Spec.Steps[i].Name == stepName {
+			stepSpec = &jobFlow.Spec.Steps[i]
+			break
+		}
+	}
+
+	if stepSpec != nil && stepSpec.ContinueOnFailure {
+		stepStatus.Phase = v1alpha1.StepPhaseFailed
+		stepStatus.Message = err.Error()
+		logger.Warning("Step failed but continuing due to ContinueOnFailure")
+		r.EventRecorder.Eventf(jobFlow, corev1.EventTypeWarning, "StepFailed", "Step %s failed but continuing: %v", stepName, err)
+		return r.Status().Update(ctx, jobFlow)
+	}
+
+	// Mark flow as failed
+	jobFlow.Status.Phase = v1alpha1.JobFlowPhaseFailed
+	now := metav1.Now()
+	jobFlow.Status.CompletionTime = &now
+	stepStatus.Phase = v1alpha1.StepPhaseFailed
+	stepStatus.Message = err.Error()
+
+	logger.Error("Step failed, marking JobFlow as failed")
+	r.EventRecorder.Eventf(jobFlow, corev1.EventTypeWarning, "StepFailed", "Step %s failed: %v", stepName, err)
+	return r.Status().Update(ctx, jobFlow)
+}
+
+// isRetryable checks if an error is retryable.
+func (r *JobFlowReconciler) isRetryable(err error) bool {
+	return k8serrors.IsConflict(err) || k8serrors.IsServerTimeout(err)
+}
+
+// updateJobFlowStatus updates the JobFlow status.
+func (r *JobFlowReconciler) updateJobFlowStatus(ctx context.Context, jobFlow *v1alpha1.JobFlow, plan *ExecutionPlan) error {
+	logger := logging.FromContext(ctx).WithJobFlow(jobFlow.Namespace, jobFlow.Name)
+
+	// Update progress
+	if jobFlow.Status.Progress != nil {
+		completed := int32(0)
+		successful := int32(0)
+		failed := int32(0)
+
+		for _, stepStatus := range jobFlow.Status.Steps {
+			if stepStatus.Phase == v1alpha1.StepPhaseSucceeded {
+				completed++
+				successful++
+			} else if stepStatus.Phase == v1alpha1.StepPhaseFailed {
+				completed++
+				failed++
+			}
+		}
+
+		jobFlow.Status.Progress.CompletedSteps = completed
+		jobFlow.Status.Progress.SuccessfulSteps = successful
+		jobFlow.Status.Progress.FailedSteps = failed
+
+		logger.WithFields(
+			logging.Field{Key: "completed_steps", Value: completed},
+			logging.Field{Key: "successful_steps", Value: successful},
+			logging.Field{Key: "failed_steps", Value: failed},
+		).V(4).Info("Updated JobFlow progress")
+	}
+
+	// Update phase
+	if jobFlow.Status.Phase == "" {
+		jobFlow.Status.Phase = v1alpha1.JobFlowPhasePending
+	}
+
+	// Check if all steps are complete
+	allComplete := true
+	allSucceeded := true
+	for _, stepStatus := range jobFlow.Status.Steps {
+		if stepStatus.Phase != v1alpha1.StepPhaseSucceeded && stepStatus.Phase != v1alpha1.StepPhaseFailed {
+			allComplete = false
+			break
+		}
+		if stepStatus.Phase == v1alpha1.StepPhaseFailed {
+			allSucceeded = false
+		}
+	}
+
+	// P0.8: Track phase transitions properly
+	oldPhase := jobFlow.Status.Phase
+	if allComplete {
+		if allSucceeded {
+			jobFlow.Status.Phase = v1alpha1.JobFlowPhaseSucceeded
+			logger.Info("JobFlow completed successfully")
+		} else {
+			jobFlow.Status.Phase = v1alpha1.JobFlowPhaseFailed
+			logger.Warning("JobFlow completed with failures")
+		}
+		now := metav1.Now()
+		jobFlow.Status.CompletionTime = &now
+		if oldPhase != jobFlow.Status.Phase {
+			r.MetricsRecorder.RecordJobFlowPhaseTransition(jobFlow.Name, jobFlow.Namespace, oldPhase, jobFlow.Status.Phase)
+		}
+	} else {
+		if jobFlow.Status.Phase == v1alpha1.JobFlowPhasePending {
+			newPhase := v1alpha1.JobFlowPhaseRunning
+			if oldPhase != newPhase {
+				r.MetricsRecorder.RecordJobFlowPhaseTransition(jobFlow.Name, jobFlow.Namespace, oldPhase, newPhase)
+			}
+			jobFlow.Status.Phase = newPhase
+		}
+		// Only record if phase changed
+		if oldPhase != jobFlow.Status.Phase {
+			r.MetricsRecorder.RecordJobFlowPhaseTransition(jobFlow.Name, jobFlow.Namespace, oldPhase, jobFlow.Status.Phase)
+		}
+	}
+
+	// Update conditions
+	r.updateConditions(jobFlow)
+
+	// Update status via controller-runtime StatusWriter
+	return r.Status().Update(ctx, jobFlow)
+}
+
+// updateConditions updates JobFlow conditions.
+func (r *JobFlowReconciler) updateConditions(jobFlow *v1alpha1.JobFlow) {
+	// Update Ready condition
+	readyCondition := v1alpha1.JobFlowCondition{
+		Type:               "Ready",
+		Status:             corev1.ConditionFalse,
+		LastTransitionTime: metav1.Now(),
+	}
+
+	if jobFlow.Status.Phase == v1alpha1.JobFlowPhaseSucceeded {
+		readyCondition.Status = corev1.ConditionTrue
+		readyCondition.Reason = "FlowSucceeded"
+		readyCondition.Message = "JobFlow completed successfully"
+	} else if jobFlow.Status.Phase == v1alpha1.JobFlowPhaseFailed {
+		readyCondition.Status = corev1.ConditionFalse
+		readyCondition.Reason = "FlowFailed"
+		readyCondition.Message = "JobFlow failed"
+	} else if jobFlow.Status.Phase == v1alpha1.JobFlowPhaseRunning {
+		readyCondition.Status = corev1.ConditionTrue
+		readyCondition.Reason = "FlowRunning"
+		readyCondition.Message = "JobFlow is executing"
+	}
+
+	// Update or add condition
+	found := false
+	for i := range jobFlow.Status.Conditions {
+		if jobFlow.Status.Conditions[i].Type == readyCondition.Type {
+			jobFlow.Status.Conditions[i] = readyCondition
+			found = true
+			break
+		}
+	}
+	if !found {
+		jobFlow.Status.Conditions = append(jobFlow.Status.Conditions, readyCondition)
+	}
+}
+
