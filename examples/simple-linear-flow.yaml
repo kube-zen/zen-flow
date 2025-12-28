@@ -1,0 +1,52 @@
+apiVersion: workflow.zen.io/v1alpha1
+kind: JobFlow
+metadata:
+  name: simple-linear-flow
+  namespace: default
+spec:
+  executionPolicy:
+    concurrencyPolicy: Forbid
+    ttlSecondsAfterFinished: 3600
+  steps:
+    - name: step1
+      template:
+        apiVersion: batch/v1
+        kind: Job
+        spec:
+          template:
+            spec:
+              containers:
+                - name: main
+                  image: busybox:latest
+                  command: ["sh", "-c"]
+                  args: ["echo 'Step 1 completed' && sleep 5"]
+              restartPolicy: OnFailure
+    - name: step2
+      dependencies: ["step1"]
+      template:
+        apiVersion: batch/v1
+        kind: Job
+        spec:
+          template:
+            spec:
+              containers:
+                - name: main
+                  image: busybox:latest
+                  command: ["sh", "-c"]
+                  args: ["echo 'Step 2 completed' && sleep 5"]
+              restartPolicy: OnFailure
+    - name: step3
+      dependencies: ["step2"]
+      template:
+        apiVersion: batch/v1
+        kind: Job
+        spec:
+          template:
+            spec:
+              containers:
+                - name: main
+                  image: busybox:latest
+                  command: ["sh", "-c"]
+                  args: ["echo 'Step 3 completed' && sleep 5"]
+              restartPolicy: OnFailure
+

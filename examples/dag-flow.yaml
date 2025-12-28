@@ -1,0 +1,93 @@
+apiVersion: workflow.zen.io/v1alpha1
+kind: JobFlow
+metadata:
+  name: dag-flow
+  namespace: default
+spec:
+  executionPolicy:
+    concurrencyPolicy: Allow
+    ttlSecondsAfterFinished: 3600
+  steps:
+    - name: extract-a
+      template:
+        apiVersion: batch/v1
+        kind: Job
+        spec:
+          template:
+            spec:
+              containers:
+                - name: main
+                  image: busybox:latest
+                  command: ["sh", "-c"]
+                  args: ["echo 'Extracted data A' && sleep 3"]
+              restartPolicy: OnFailure
+    - name: extract-b
+      template:
+        apiVersion: batch/v1
+        kind: Job
+        spec:
+          template:
+            spec:
+              containers:
+                - name: main
+                  image: busybox:latest
+                  command: ["sh", "-c"]
+                  args: ["echo 'Extracted data B' && sleep 3"]
+              restartPolicy: OnFailure
+    - name: transform-a
+      dependencies: ["extract-a"]
+      template:
+        apiVersion: batch/v1
+        kind: Job
+        spec:
+          template:
+            spec:
+              containers:
+                - name: main
+                  image: busybox:latest
+                  command: ["sh", "-c"]
+                  args: ["echo 'Transformed data A' && sleep 3"]
+              restartPolicy: OnFailure
+    - name: transform-b
+      dependencies: ["extract-b"]
+      template:
+        apiVersion: batch/v1
+        kind: Job
+        spec:
+          template:
+            spec:
+              containers:
+                - name: main
+                  image: busybox:latest
+                  command: ["sh", "-c"]
+                  args: ["echo 'Transformed data B' && sleep 3"]
+              restartPolicy: OnFailure
+    - name: merge
+      dependencies: ["transform-a", "transform-b"]
+      template:
+        apiVersion: batch/v1
+        kind: Job
+        spec:
+          template:
+            spec:
+              containers:
+                - name: main
+                  image: busybox:latest
+                  command: ["sh", "-c"]
+                  args: ["echo 'Merged data' && sleep 3"]
+              restartPolicy: OnFailure
+    - name: load
+      dependencies: ["merge"]
+      template:
+        apiVersion: batch/v1
+        kind: Job
+        spec:
+          template:
+            spec:
+              containers:
+                - name: main
+                  image: busybox:latest
+                  command: ["sh", "-c"]
+                  args: ["echo 'Loaded data' && sleep 3"]
+              restartPolicy: OnFailure
+

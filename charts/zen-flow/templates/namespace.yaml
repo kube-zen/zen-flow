@@ -1,0 +1,9 @@
+{{- if .Values.namespace.create }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ include "zen-flow.namespace" . }}
+  labels:
+    {{- include "zen-flow.labels" . | nindent 4 }}
+{{- end }}
+
