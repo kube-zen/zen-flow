@@ -750,4 +750,3 @@ func (r *JobFlowReconciler) updateConditions(jobFlow *v1alpha1.JobFlow) {
 		jobFlow.Status.Conditions = append(jobFlow.Status.Conditions, readyCondition)
 	}
 }
-
