@@ -36,9 +36,11 @@ WORKDIR /app
 # Copy binary from builder
 COPY --from=builder /build/zen-flow-controller /app/zen-flow-controller
 
-# Create non-root user
-RUN addgroup -g 65534 -S nonroot && \
-    adduser -u 65534 -S nonroot -G nonroot && \
+# Create non-root user (handle case where group/user already exists)
+RUN addgroup -g 65534 -S nonroot 2>/dev/null || true && \
+    adduser -u 65534 -S nonroot -G nonroot 2>/dev/null || \
+    (getent group nonroot >/dev/null || addgroup -S nonroot) && \
+    (getent passwd nonroot >/dev/null || adduser -S nonroot -G nonroot) && \
     chown -R nonroot:nonroot /app
 
 USER nonroot:nonroot
