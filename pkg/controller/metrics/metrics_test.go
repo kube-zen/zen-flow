@@ -29,7 +29,7 @@ func TestNewRecorder(t *testing.T) {
 
 func TestRecorder_RecordJobFlowPhase(t *testing.T) {
 	recorder := NewRecorder()
-	
+
 	// Should not panic
 	recorder.RecordJobFlowPhase("Running", "default")
 	recorder.RecordJobFlowPhase("Succeeded", "test-namespace")
@@ -37,7 +37,7 @@ func TestRecorder_RecordJobFlowPhase(t *testing.T) {
 
 func TestRecorder_RecordStepDuration(t *testing.T) {
 	recorder := NewRecorder()
-	
+
 	// Should not panic
 	recorder.RecordStepDuration("flow1", "step1", "success", 1.5)
 	recorder.RecordStepDuration("flow1", "step2", "failure", 2.3)
@@ -45,7 +45,7 @@ func TestRecorder_RecordStepDuration(t *testing.T) {
 
 func TestRecorder_RecordReconciliationDuration(t *testing.T) {
 	recorder := NewRecorder()
-	
+
 	// Should not panic
 	recorder.RecordReconciliationDuration(0.1)
 	recorder.RecordReconciliationDuration(0.5)
@@ -53,10 +53,9 @@ func TestRecorder_RecordReconciliationDuration(t *testing.T) {
 
 func TestRecorder_RecordStepPhase(t *testing.T) {
 	recorder := NewRecorder()
-	
+
 	// Should not panic
 	recorder.RecordStepPhase("flow1", "Running")
 	recorder.RecordStepPhase("flow1", "Succeeded")
 	recorder.RecordStepPhase("flow1", "Failed")
 }
-

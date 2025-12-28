@@ -96,4 +96,3 @@ func TestStatusUpdater_UpdateStatus_NotFound(t *testing.T) {
 		t.Error("UpdateStatus should return error for nonexistent JobFlow")
 	}
 }
-

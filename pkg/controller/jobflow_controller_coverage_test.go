@@ -67,9 +67,9 @@ func TestJobFlowController_updateStepStatusFromJob(t *testing.T) {
 	}
 
 	tests := []struct {
-		name    string
-		job     *batchv1.Job
-		want    string
+		name string
+		job  *batchv1.Job
+		want string
 	}{
 		{
 			name: "succeeded job",
@@ -356,4 +356,3 @@ func TestJobFlowController_createResourceTemplates_AlreadyExists(t *testing.T) {
 }
 
 // mustMarshalJobTemplate is now in test_helpers.go
-

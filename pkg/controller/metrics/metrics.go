@@ -87,4 +87,3 @@ func (r *Recorder) RecordReconciliationDuration(duration float64) {
 func (r *Recorder) RecordStepPhase(flow, phase string) {
 	StepsTotal.WithLabelValues(flow, phase).Inc()
 }
-

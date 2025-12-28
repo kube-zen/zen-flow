@@ -86,8 +86,8 @@ func WithStep(err error, stepName string) *JobFlowError {
 		return jferr
 	}
 	return &JobFlowError{
-		Message: err.Error(),
-		Err:     err,
+		Message:  err.Error(),
+		Err:      err,
 		StepName: stepName,
 	}
 }
@@ -133,4 +133,3 @@ func Wrapf(err error, errType, format string, args ...interface{}) *JobFlowError
 		Err:     err,
 	}
 }
-

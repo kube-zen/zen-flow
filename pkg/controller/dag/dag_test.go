@@ -203,4 +203,3 @@ func TestTopologicalSort_EmptyGraph(t *testing.T) {
 		t.Errorf("Expected empty sort result, got %d items", len(sorted))
 	}
 }
-

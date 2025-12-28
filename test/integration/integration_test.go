@@ -177,4 +177,3 @@ func mustMarshalJob(job *batchv1.Job) []byte {
 	}
 	return raw
 }
-

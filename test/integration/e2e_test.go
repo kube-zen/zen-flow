@@ -32,8 +32,8 @@ import (
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/dynamic/fake"
 	"k8s.io/client-go/informers"
-	"k8s.io/client-go/tools/cache"
 	kubefake "k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/tools/cache"
 
 	"github.com/kube-zen/zen-flow/pkg/api/v1alpha1"
 	"github.com/kube-zen/zen-flow/pkg/controller"
@@ -102,7 +102,7 @@ func createJobFlowInClient(t *testing.T, dynamicClient *fake.FakeDynamicClient, 
 	if jobFlowInformer != nil {
 		jobFlowInformer.GetStore().Add(unstructuredJobFlow)
 	}
-	
+
 	return unstructuredJobFlow
 }
 
@@ -333,8 +333,8 @@ func TestE2E_ContinueOnFailure(t *testing.T) {
 		Spec: v1alpha1.JobFlowSpec{
 			Steps: []v1alpha1.Step{
 				{
-					Name:             "step1",
-					Dependencies:     []string{},
+					Name:              "step1",
+					Dependencies:      []string{},
 					ContinueOnFailure: true,
 					Template: runtime.RawExtension{
 						Raw: marshalJobTemplate(t, &batchv1.Job{
@@ -595,4 +595,3 @@ func TestE2E_ErrorRecovery(t *testing.T) {
 		t.Errorf("Expected 0 steps for invalid JobFlow, got %d", len(retrievedJobFlow.Spec.Steps))
 	}
 }
-

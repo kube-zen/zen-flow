@@ -218,12 +218,12 @@ func main() {
 				// Started leading - start informer factories and controller
 				jobFlowInformerFactory.Start(ctx.Done())
 				informerFactory.Start(ctx.Done())
-				
+
 				// Wait for cache sync
 				if !cache.WaitForCacheSync(ctx.Done(), jobFlowInformer.HasSynced, jobInformer.Informer().HasSynced, pvcInformer.Informer().HasSynced) {
 					klog.Fatalf("Failed to sync caches")
 				}
-				
+
 				// Start controller
 				if err := jobFlowController.Start(); err != nil {
 					klog.Fatalf("Error starting JobFlow controller: %v", err)
@@ -250,12 +250,12 @@ func main() {
 		// No leader election - start informer factories and controller directly
 		jobFlowInformerFactory.Start(ctx.Done())
 		informerFactory.Start(ctx.Done())
-		
+
 		// Wait for cache sync
 		if !cache.WaitForCacheSync(ctx.Done(), jobFlowInformer.HasSynced, jobInformer.Informer().HasSynced, pvcInformer.Informer().HasSynced) {
 			klog.Fatalf("Failed to sync caches")
 		}
-		
+
 		// Start controller
 		if err := jobFlowController.Start(); err != nil {
 			klog.Fatalf("Error starting JobFlow controller: %v", err)
@@ -341,4 +341,3 @@ func startMetricsServer(addr string, leaderElection *controller.LeaderElection) 
 		klog.Fatalf("Error starting metrics server: %v", err)
 	}
 }
-

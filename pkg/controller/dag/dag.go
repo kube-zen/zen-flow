@@ -98,4 +98,3 @@ func (g *Graph) TopologicalSort() []string {
 
 	return result
 }
-

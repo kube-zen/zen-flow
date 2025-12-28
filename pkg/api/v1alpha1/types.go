@@ -439,20 +439,20 @@ type InitiatedBy struct {
 
 // Step phase constants
 const (
-	StepPhasePending  = "Pending"
-	StepPhaseRunning  = "Running"
+	StepPhasePending   = "Pending"
+	StepPhaseRunning   = "Running"
 	StepPhaseSucceeded = "Succeeded"
-	StepPhaseFailed   = "Failed"
-	StepPhaseSkipped  = "Skipped"
+	StepPhaseFailed    = "Failed"
+	StepPhaseSkipped   = "Skipped"
 )
 
 // JobFlow phase constants
 const (
 	JobFlowPhasePending   = "Pending"
-	JobFlowPhaseRunning    = "Running"
-	JobFlowPhaseSucceeded  = "Succeeded"
-	JobFlowPhaseFailed     = "Failed"
-	JobFlowPhaseSuspended  = "Suspended"
+	JobFlowPhaseRunning   = "Running"
+	JobFlowPhaseSucceeded = "Succeeded"
+	JobFlowPhaseFailed    = "Failed"
+	JobFlowPhaseSuspended = "Suspended"
 )
 
 // GetJobTemplate extracts the Job template from a Step's Template field.
@@ -470,4 +470,3 @@ func (s *Step) GetJobTemplate() (*batchv1.Job, error) {
 	}
 	return job, nil
 }
-

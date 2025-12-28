@@ -76,4 +76,3 @@ func (r *EventRecorder) Eventf(object runtime.Object, eventType, reason, message
 func (r *EventRecorder) Event(object runtime.Object, eventType, reason, message string) {
 	r.recorder.Event(object, eventType, reason, message)
 }
-

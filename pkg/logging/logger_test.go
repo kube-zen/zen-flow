@@ -224,4 +224,3 @@ func TestSafeKlogLevel_Clamping(t *testing.T) {
 		t.Errorf("Expected level 15, got %d", vl.level)
 	}
 }
-

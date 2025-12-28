@@ -370,4 +370,3 @@ func marshalJobFlow(t *testing.T, jobFlow *v1alpha1.JobFlow) []byte {
 	}
 	return raw
 }
-
