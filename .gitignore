@@ -1,5 +1,6 @@
 # Binaries
 bin/
+zen-flow-controller
 *.exe
 *.exe~
 *.dll
