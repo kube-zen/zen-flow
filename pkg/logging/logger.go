@@ -237,4 +237,3 @@ func GetCorrelationID(ctx context.Context) string {
 func GenerateCorrelationID() string {
 	return fmt.Sprintf("flow-%d", time.Now().UnixNano())
 }
-

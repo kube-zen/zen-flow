@@ -49,4 +49,3 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
 	return nil
 }
-

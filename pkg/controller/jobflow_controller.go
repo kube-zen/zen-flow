@@ -37,9 +37,9 @@ import (
 
 	"github.com/kube-zen/zen-flow/pkg/api/v1alpha1"
 	"github.com/kube-zen/zen-flow/pkg/controller/dag"
+	"github.com/kube-zen/zen-flow/pkg/controller/metrics"
 	jferrors "github.com/kube-zen/zen-flow/pkg/errors"
 	"github.com/kube-zen/zen-flow/pkg/logging"
-	"github.com/kube-zen/zen-flow/pkg/controller/metrics"
 )
 
 const (
@@ -235,12 +235,12 @@ func (c *JobFlowController) processNextJobFlow(ctx context.Context) bool {
 	defer c.jobFlowQueue.Done(obj)
 
 	key := obj.(string)
-	
+
 	// Add correlation ID for this reconciliation
 	correlationID := logging.GenerateCorrelationID()
 	reconcileCtx := logging.WithCorrelationID(ctx, correlationID)
 	logger := logging.FromContext(reconcileCtx).WithField("jobflow_key", key)
-	
+
 	reconcileStart := time.Now()
 	if err := c.reconcileJobFlow(reconcileCtx, key); err != nil {
 		logger.WithError(err).WithDuration(time.Since(reconcileStart)).Error("Error reconciling JobFlow")
@@ -496,7 +496,7 @@ func (c *JobFlowController) getStepStatus(status v1alpha1.JobFlowStatus, stepNam
 // executeStep executes a step.
 func (c *JobFlowController) executeStep(ctx context.Context, jobFlow *v1alpha1.JobFlow, stepName string) error {
 	logger := logging.FromContext(ctx).WithJobFlow(jobFlow.Namespace, jobFlow.Name).WithStep(stepName)
-	
+
 	// Find step spec
 	var stepSpec *v1alpha1.Step
 	for i := range jobFlow.Spec.Steps {
@@ -554,7 +554,7 @@ func (c *JobFlowController) executeStep(ctx context.Context, jobFlow *v1alpha1.J
 // createJobForStep creates a Kubernetes Job for a step.
 func (c *JobFlowController) createJobForStep(ctx context.Context, jobFlow *v1alpha1.JobFlow, step *v1alpha1.Step) (*batchv1.Job, error) {
 	logger := logging.FromContext(ctx).WithJobFlow(jobFlow.Namespace, jobFlow.Name).WithStep(step.Name)
-	
+
 	// Get job template from step
 	jobTemplate, err := step.GetJobTemplate()
 	if err != nil {
@@ -606,7 +606,7 @@ func (c *JobFlowController) createJobForStep(ctx context.Context, jobFlow *v1alp
 // updateStepStatusFromJob updates step status based on job status.
 func (c *JobFlowController) updateStepStatusFromJob(ctx context.Context, jobFlow *v1alpha1.JobFlow, stepName string, job *batchv1.Job) error {
 	logger := logging.FromContext(ctx).WithJobFlow(jobFlow.Namespace, jobFlow.Name).WithStep(stepName).WithJob(jobFlow.Namespace, job.Name)
-	
+
 	stepStatus := c.getStepStatus(jobFlow.Status, stepName)
 	if stepStatus == nil {
 		return jferrors.WithStep(jferrors.WithJobFlow(jferrors.New("step_status_not_found", fmt.Sprintf("step status not found: %s", stepName)), jobFlow.Namespace, jobFlow.Name), stepName)
@@ -636,7 +636,7 @@ func (c *JobFlowController) updateStepStatusFromJob(ctx context.Context, jobFlow
 // handleStepFailure handles a step failure.
 func (c *JobFlowController) handleStepFailure(ctx context.Context, jobFlow *v1alpha1.JobFlow, stepName string, err error) error {
 	logger := logging.FromContext(ctx).WithJobFlow(jobFlow.Namespace, jobFlow.Name).WithStep(stepName).WithError(err)
-	
+
 	stepStatus := c.getStepStatus(jobFlow.Status, stepName)
 	if stepStatus == nil {
 		return jferrors.WithStep(jferrors.WithJobFlow(jferrors.New("step_status_not_found", fmt.Sprintf("step status not found: %s", stepName)), jobFlow.Namespace, jobFlow.Name), stepName)
@@ -679,7 +679,7 @@ func (c *JobFlowController) isRetryable(err error) bool {
 // updateJobFlowStatus updates the JobFlow status.
 func (c *JobFlowController) updateJobFlowStatus(ctx context.Context, jobFlow *v1alpha1.JobFlow, plan *ExecutionPlan) error {
 	logger := logging.FromContext(ctx).WithJobFlow(jobFlow.Namespace, jobFlow.Name)
-	
+
 	// Update progress
 	if jobFlow.Status.Progress != nil {
 		completed := int32(0)
@@ -699,7 +699,7 @@ func (c *JobFlowController) updateJobFlowStatus(ctx context.Context, jobFlow *v1
 		jobFlow.Status.Progress.CompletedSteps = completed
 		jobFlow.Status.Progress.SuccessfulSteps = successful
 		jobFlow.Status.Progress.FailedSteps = failed
-		
+
 		logger.WithFields(
 			logging.Field{Key: "completed_steps", Value: completed},
 			logging.Field{Key: "successful_steps", Value: successful},
@@ -760,7 +760,7 @@ func (c *JobFlowController) updateJobFlowStatus(ctx context.Context, jobFlow *v1
 // updateStatus is a helper to update status with phase and error.
 func (c *JobFlowController) updateStatus(jobFlow *v1alpha1.JobFlow, phase string, err error) error {
 	logger := logging.NewLogger().WithJobFlow(jobFlow.Namespace, jobFlow.Name)
-	
+
 	jobFlow.Status.Phase = phase
 	if err != nil {
 		logger.WithError(err).Error("Updating JobFlow status with error")
@@ -811,4 +811,3 @@ func (c *JobFlowController) updateConditions(jobFlow *v1alpha1.JobFlow) {
 		jobFlow.Status.Conditions = append(jobFlow.Status.Conditions, readyCondition)
 	}
 }
-

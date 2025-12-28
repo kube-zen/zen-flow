@@ -89,4 +89,3 @@ func (s *StatusUpdater) UpdateStatus(
 	klog.V(4).Infof("Updated JobFlow status: %s/%s (phase=%s)", jobFlow.Namespace, jobFlow.Name, jobFlow.Status.Phase)
 	return nil
 }
-

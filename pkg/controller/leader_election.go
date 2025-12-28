@@ -144,4 +144,3 @@ func (le *LeaderElection) SetCallbacks(onStarted func(context.Context), onStoppe
 func (le *LeaderElection) Identity() string {
 	return le.identity
 }
-

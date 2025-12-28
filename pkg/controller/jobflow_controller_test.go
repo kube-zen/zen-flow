@@ -21,9 +21,9 @@ import (
 	"testing"
 	"time"
 
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/dynamic/fake"
 	"k8s.io/client-go/informers"
@@ -297,24 +297,24 @@ func TestJobFlowController_isRetryable(t *testing.T) {
 	)
 
 	tests := []struct {
-		name    string
-		err     error
-		want    bool
+		name string
+		err  error
+		want bool
 	}{
 		{
 			name: "conflict error",
-			err:   k8serrors.NewConflict(schema.GroupResource{}, "test", errors.New("conflict")),
-			want:  true,
+			err:  k8serrors.NewConflict(schema.GroupResource{}, "test", errors.New("conflict")),
+			want: true,
 		},
 		{
 			name: "server timeout error",
-			err:   k8serrors.NewServerTimeout(schema.GroupResource{}, "test", 0),
-			want:  true,
+			err:  k8serrors.NewServerTimeout(schema.GroupResource{}, "test", 0),
+			want: true,
 		},
 		{
 			name: "non-retryable error",
-			err:   errors.New("some error"),
-			want:  false,
+			err:  errors.New("some error"),
+			want: false,
 		},
 	}
 
@@ -326,4 +326,3 @@ func TestJobFlowController_isRetryable(t *testing.T) {
 		})
 	}
 }
-

@@ -359,4 +359,3 @@ func TestJobFlowController_handleJobChange_NoOwnerRef(t *testing.T) {
 func buildDAGForTest(steps []v1alpha1.Step) *dag.Graph {
 	return dag.BuildDAG(steps)
 }
-

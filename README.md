@@ -2,6 +2,7 @@
 
 [![Version](https://img.shields.io/badge/version-0.0.1--alpha-blue)](https://github.com/kube-zen/zen-flow)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
+[![CI](https://github.com/kube-zen/zen-flow/workflows/CI/badge.svg)](https://github.com/kube-zen/zen-flow/actions)
 
 **zen-flow** is a Kubernetes-native job orchestration controller that provides declarative, sequential execution of Kubernetes Jobs using standard CRDs. It addresses the critical gap between isolated Kubernetes Jobs and heavyweight workflow engines like Argo Workflows, offering production-grade orchestration with zero operational overhead.
 
@@ -175,12 +176,28 @@ make run
 # Run unit tests
 make test-unit
 
+# Run E2E tests
+make test-e2e
+
 # Check coverage
 make coverage
 
 # Run all checks
 make ci-check
 ```
+
+### CI/CD
+
+The project uses GitHub Actions for continuous integration:
+
+- **Lint**: Runs `golangci-lint`, `go vet`, formatting checks, and YAML linting
+- **Test**: Runs unit and integration tests with coverage reporting
+- **Build**: Builds the controller binary
+- **Security**: Runs vulnerability scans (govulncheck, gosec, Trivy)
+- **Multi-Arch Build**: Builds Docker images for linux/amd64 and linux/arm64
+- **Helm Chart**: Publishes Helm charts to GitHub Pages
+
+See `.github/workflows/` for workflow definitions.
 
 ### Project Structure
 

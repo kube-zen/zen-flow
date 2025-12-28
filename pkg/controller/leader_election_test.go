@@ -119,4 +119,3 @@ func TestLeaderElection_Identity(t *testing.T) {
 		t.Error("Identity should not be empty")
 	}
 }
-

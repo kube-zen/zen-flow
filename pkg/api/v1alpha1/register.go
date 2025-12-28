@@ -17,4 +17,3 @@ limitations under the License.
 package v1alpha1
 
 // This file contains registration helpers for the JobFlow API.
-

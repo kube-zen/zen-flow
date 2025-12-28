@@ -55,7 +55,7 @@ func mustMarshalJobTemplate(job *batchv1.Job) []byte {
 	if err != nil {
 		panic(err)
 	}
-	
+
 	// Ensure Kind and APIVersion are set in the unstructured object
 	if unstructuredJob["kind"] == nil {
 		unstructuredJob["kind"] = "Job"
@@ -63,11 +63,10 @@ func mustMarshalJobTemplate(job *batchv1.Job) []byte {
 	if unstructuredJob["apiVersion"] == nil {
 		unstructuredJob["apiVersion"] = batchv1.SchemeGroupVersion.String()
 	}
-	
+
 	raw, err := json.Marshal(unstructuredJob)
 	if err != nil {
 		panic(err)
 	}
 	return raw
 }
-
