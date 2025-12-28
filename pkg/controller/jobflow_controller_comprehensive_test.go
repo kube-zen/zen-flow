@@ -988,3 +988,38 @@ func TestJobFlowController_isRetryable_WrappedError(t *testing.T) {
 		t.Log("Wrapped retryable error detected (may depend on implementation)")
 	}
 }
+
+func TestJobFlowController_Wait(t *testing.T) {
+	scheme := runtime.NewScheme()
+	dynamicClient := fake.NewSimpleDynamicClient(scheme)
+	kubeClient := kubefake.NewSimpleClientset()
+
+	controller := NewJobFlowController(
+		dynamicClient,
+		kubeClient,
+		nil,
+		nil,
+		nil,
+		NewStatusUpdater(dynamicClient),
+		metrics.NewRecorder(),
+		NewEventRecorder(kubeClient),
+	)
+
+	// Stop the controller in a goroutine after a short delay
+	done := make(chan bool, 1)
+	go func() {
+		controller.Wait()
+		done <- true
+	}()
+
+	// Stop the controller
+	controller.Stop()
+
+	// Wait for Wait() to complete
+	select {
+	case <-done:
+		// Success - Wait() completed after Stop()
+	case <-time.After(2 * time.Second):
+		t.Error("Wait() did not complete within timeout")
+	}
+}

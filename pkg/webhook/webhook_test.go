@@ -359,6 +359,142 @@ func TestWebhookServer_Start(t *testing.T) {
 	}
 }
 
+func TestWebhookServer_StartTLS(t *testing.T) {
+	server, err := NewWebhookServer(":0", "", "")
+	if err != nil {
+		t.Fatalf("Failed to create webhook server: %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	// StartTLS will fail because cert files don't exist, but we can test the function doesn't panic
+	// and that it handles the error gracefully
+	errChan := make(chan error, 1)
+	go func() {
+		errChan <- server.StartTLS(ctx, "/nonexistent/cert.pem", "/nonexistent/key.pem")
+	}()
+
+	// Wait for context to cancel or error
+	select {
+	case err := <-errChan:
+		// Error is expected since cert files don't exist
+		if err == nil {
+			t.Error("Expected error for nonexistent cert files")
+		}
+	case <-ctx.Done():
+		// Context canceled, which is fine
+	case <-time.After(200 * time.Millisecond):
+		// Timeout - server might be waiting for cert files
+		t.Log("StartTLS timed out (expected with nonexistent cert files)")
+	}
+}
+
+func TestWebhookServer_handleValidate_InvalidMethod(t *testing.T) {
+	server, err := NewWebhookServer(":0", "", "")
+	if err != nil {
+		t.Fatalf("Failed to create webhook server: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/validate-jobflow", nil)
+	w := httptest.NewRecorder()
+
+	server.handleValidate(w, req)
+
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("Expected status code %d, got %d", http.StatusMethodNotAllowed, w.Code)
+	}
+}
+
+func TestWebhookServer_handleValidate_InvalidJSON(t *testing.T) {
+	server, err := NewWebhookServer(":0", "", "")
+	if err != nil {
+		t.Fatalf("Failed to create webhook server: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/validate-jobflow", bytes.NewReader([]byte("invalid json")))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	server.handleValidate(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("Expected status code %d, got %d", http.StatusBadRequest, w.Code)
+	}
+}
+
+func TestWebhookServer_handleMutate_InvalidMethod(t *testing.T) {
+	server, err := NewWebhookServer(":0", "", "")
+	if err != nil {
+		t.Fatalf("Failed to create webhook server: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/mutate-jobflow", nil)
+	w := httptest.NewRecorder()
+
+	server.handleMutate(w, req)
+
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("Expected status code %d, got %d", http.StatusMethodNotAllowed, w.Code)
+	}
+}
+
+func TestWebhookServer_handleMutate_InvalidJSON(t *testing.T) {
+	server, err := NewWebhookServer(":0", "", "")
+	if err != nil {
+		t.Fatalf("Failed to create webhook server: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/mutate-jobflow", bytes.NewReader([]byte("invalid json")))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	server.handleMutate(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("Expected status code %d, got %d", http.StatusBadRequest, w.Code)
+	}
+}
+
+func TestWebhookServer_validateJobFlow_DeleteOperation(t *testing.T) {
+	server, err := NewWebhookServer(":0", "", "")
+	if err != nil {
+		t.Fatalf("Failed to create webhook server: %v", err)
+	}
+
+	req := &admissionv1.AdmissionRequest{
+		Operation: admissionv1.Delete,
+		UID:       "test-uid",
+	}
+
+	// Delete operations should not be validated
+	err = server.validateJobFlow(req)
+	if err != nil {
+		t.Errorf("Delete operation should not be validated, got error: %v", err)
+	}
+}
+
+func TestWebhookServer_mutateJobFlow_UpdateOperation(t *testing.T) {
+	server, err := NewWebhookServer(":0", "", "")
+	if err != nil {
+		t.Fatalf("Failed to create webhook server: %v", err)
+	}
+
+	req := &admissionv1.AdmissionRequest{
+		Operation: admissionv1.Update,
+		UID:       "test-uid",
+	}
+
+	// Update operations should not be mutated
+	patches, err := server.mutateJobFlow(req)
+	if err != nil {
+		t.Errorf("Update operation should not be mutated, got error: %v", err)
+	}
+	if len(patches) != 0 {
+		t.Errorf("Update operation should not produce patches, got %d patches", len(patches))
+	}
+}
+
 func marshalJobFlow(t *testing.T, jobFlow *v1alpha1.JobFlow) []byte {
 	jobFlow.TypeMeta = metav1.TypeMeta{
 		APIVersion: "workflow.zen.io/v1alpha1",

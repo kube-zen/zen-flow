@@ -110,7 +110,15 @@ jobs:
         run: go mod download
       
       - name: Run unit tests
-        run: go test -v -race -coverprofile=coverage.out -covermode=atomic -timeout=10m ./pkg/...
+        run: |
+          # Exclude generated code (pkg/api/v1alpha1) from test coverage
+          # This package contains generated CRD code that doesn't need test coverage
+          go test -v -race -coverprofile=coverage.out -covermode=atomic -timeout=10m \
+            ./pkg/controller/... \
+            ./pkg/validation/... \
+            ./pkg/logging/... \
+            ./pkg/webhook/... \
+            ./pkg/errors/...
       
       - name: Run integration tests
         run: go test -v -timeout=5m ./test/integration/...
