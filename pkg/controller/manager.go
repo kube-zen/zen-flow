@@ -22,6 +22,7 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 
 	"github.com/kube-zen/zen-flow/pkg/api/v1alpha1"
 	"github.com/kube-zen/zen-flow/pkg/controller/metrics"
@@ -57,6 +58,14 @@ func SetupController(mgr ctrl.Manager, maxConcurrentReconciles int, metricsRecor
 	builder := ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.JobFlow{}).
 		Owns(&batchv1.Job{})
+
+	// Set max concurrent reconciles if specified (controller-runtime uses default if not set)
+	if maxConcurrentReconciles > 0 {
+		controllerOpts := controller.Options{
+			MaxConcurrentReconciles: maxConcurrentReconciles,
+		}
+		builder = builder.WithOptions(controllerOpts)
+	}
 
 	return reconciler.SetupWithManager(builder)
 }

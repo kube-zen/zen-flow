@@ -28,18 +28,12 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/dynamic/dynamicinformer"
-	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog/v2"
+	ctrl "sigs.k8s.io/controller-runtime"
 
-	"github.com/kube-zen/zen-flow/pkg/api/v1alpha1"
 	"github.com/kube-zen/zen-flow/pkg/controller"
 	"github.com/kube-zen/zen-flow/pkg/controller/metrics"
 	"github.com/kube-zen/zen-flow/pkg/webhook"
@@ -80,29 +74,6 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
-	// Build config
-	cfg, err := buildConfig(*masterURL, *kubeconfig)
-	if err != nil {
-		klog.Fatalf("Error building kubeconfig: %v", err)
-	}
-
-	// Create dynamic client for JobFlow CRD
-	dynamicClient, err := dynamic.NewForConfig(cfg)
-	if err != nil {
-		klog.Fatalf("Error building dynamic client: %v", err)
-	}
-
-	// Create Kubernetes client
-	kubeClient, err := kubernetes.NewForConfig(cfg)
-	if err != nil {
-		klog.Fatalf("Error building Kubernetes client: %v", err)
-	}
-
-	// Add JobFlow to scheme
-	if err := v1alpha1.AddToScheme(scheme.Scheme); err != nil {
-		klog.Fatalf("Error adding scheme: %v", err)
-	}
-
 	// Get namespace for leader election
 	namespace := *leaderElectionNS
 	if namespace == "" {
@@ -117,54 +88,38 @@ func main() {
 		}
 	}
 
-	// Create JobFlow GVR
-	jobFlowGVR := schema.GroupVersionResource{
-		Group:    "workflow.zen.io",
-		Version:  "v1alpha1",
-		Resource: "jobflows",
-	}
-
-	// Create dynamic informer factory for JobFlow
-	jobFlowInformerFactory := dynamicinformer.NewDynamicSharedInformerFactory(dynamicClient, 10*time.Minute)
-	jobFlowInformer := jobFlowInformerFactory.ForResource(jobFlowGVR).Informer()
-
-	// Create informer factories for standard resources
-	informerFactory := informers.NewSharedInformerFactory(kubeClient, 10*time.Minute)
-	jobInformer := informerFactory.Batch().V1().Jobs()
-	pvcInformer := informerFactory.Core().V1().PersistentVolumeClaims()
-
 	// Create metrics recorder
 	metricsRecorder := metrics.NewRecorder()
+
+	// Build config for Kubernetes client (needed for event recorder)
+	cfg, err := buildConfig(*masterURL, *kubeconfig)
+	if err != nil {
+		klog.Fatalf("Error building kubeconfig: %v", err)
+	}
+
+	// Create Kubernetes client for event recorder
+	kubeClient, err := kubernetes.NewForConfig(cfg)
+	if err != nil {
+		klog.Fatalf("Error building Kubernetes client: %v", err)
+	}
 
 	// Create event recorder
 	eventRecorder := controller.NewEventRecorder(kubeClient)
 
-	// Create status updater
-	statusUpdater := controller.NewStatusUpdater(dynamicClient)
+	// Setup controller-runtime manager
+	managerOptions := controller.ManagerOptions(namespace, *enableLeaderElection)
+	mgr, err := controller.SetupManager(managerOptions)
+	if err != nil {
+		klog.Fatalf("Error setting up manager: %v", err)
+	}
 
-	// Create JobFlow controller
-	jobFlowController := controller.NewJobFlowController(
-		dynamicClient,
-		kubeClient,
-		jobFlowInformer,
-		jobInformer,
-		pvcInformer,
-		statusUpdater,
-		metricsRecorder,
-		eventRecorder,
-	)
-
-	// Setup leader election if enabled
-	var leaderElection *controller.LeaderElection
-	if *enableLeaderElection {
-		leaderElection, err = controller.NewLeaderElection(kubeClient, namespace, "zen-flow-controller-leader-election")
-		if err != nil {
-			klog.Fatalf("Error creating leader election: %v", err)
-		}
+	// Setup controller with manager
+	if err := controller.SetupController(mgr, *maxConcurrentReconciles, metricsRecorder, eventRecorder); err != nil {
+		klog.Fatalf("Error setting up controller: %v", err)
 	}
 
 	// Start metrics server
-	go startMetricsServer(*metricsAddr, leaderElection)
+	go startMetricsServer(*metricsAddr, mgr)
 
 	// Start webhook server if enabled
 	var webhookServer *webhook.WebhookServer
@@ -207,84 +162,20 @@ func main() {
 		}
 	}
 
-	// Setup leader election callbacks if enabled
-	if *enableLeaderElection {
-		if leaderElection == nil {
-			klog.Fatalf("Leader election not initialized")
+	// Start manager (handles leader election, cache sync, and controller lifecycle)
+	klog.Info("Starting controller-runtime manager...")
+	go func() {
+		if err := mgr.Start(ctx); err != nil {
+			klog.Fatalf("Error starting manager: %v", err)
 		}
-
-		// Set callbacks
-		leaderElection.SetCallbacks(
-			func(ctx context.Context) {
-				// Started leading - start informer factories and controller
-				jobFlowInformerFactory.Start(ctx.Done())
-				informerFactory.Start(ctx.Done())
-
-				// Wait for cache sync
-				if !cache.WaitForCacheSync(ctx.Done(), jobFlowInformer.HasSynced, jobInformer.Informer().HasSynced, pvcInformer.Informer().HasSynced) {
-					klog.Fatalf("Failed to sync caches")
-				}
-
-				// Start controller
-				if err := jobFlowController.Start(); err != nil {
-					klog.Fatalf("Error starting JobFlow controller: %v", err)
-				}
-				klog.Info("JobFlow controller started (leader)")
-			},
-			func() {
-				// Stopped leading - stop controller
-				jobFlowController.Stop()
-				klog.Info("JobFlow controller stopped (lost leadership)")
-			},
-		)
-
-		// Run leader election (blocks until context is canceled).
-		klog.Info("Starting leader election...")
-		go func() {
-			if err := leaderElection.Run(ctx); err != nil {
-				klog.Fatalf("Leader election error: %v", err)
-			}
-		}()
-
-		klog.Info("Waiting for leadership...")
-	} else {
-		// No leader election - start informer factories and controller directly
-		jobFlowInformerFactory.Start(ctx.Done())
-		informerFactory.Start(ctx.Done())
-
-		// Wait for cache sync
-		if !cache.WaitForCacheSync(ctx.Done(), jobFlowInformer.HasSynced, jobInformer.Informer().HasSynced, pvcInformer.Informer().HasSynced) {
-			klog.Fatalf("Failed to sync caches")
-		}
-
-		// Start controller
-		if err := jobFlowController.Start(); err != nil {
-			klog.Fatalf("Error starting JobFlow controller: %v", err)
-		}
-		klog.Info("JobFlow controller is running (no leader election). Press Ctrl+C to stop.")
-	}
+	}()
 
 	// Wait for shutdown signal
 	<-ctx.Done()
 	klog.Info("Shutdown signal received, initiating graceful shutdown...")
 
-	// Create shutdown context with timeout
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), DefaultShutdownTimeout)
-	defer shutdownCancel()
-
-	// Stop controller gracefully (with timeout)
-	done := make(chan struct{})
-	go func() {
-		jobFlowController.Stop()
-		close(done)
-	}()
-
-	select {
-	case <-done:
-		klog.Info("Controller stopped successfully")
-	case <-shutdownCtx.Done():
-		klog.Warning("Controller shutdown timed out, forcing exit")
-	}
+	// Manager shutdown is handled automatically via context cancellation
+	// No explicit Stop() call needed - controller-runtime handles graceful shutdown
 
 	// Webhook server shutdown is handled automatically via context cancellation
 	// No explicit Stop() call needed
@@ -307,7 +198,7 @@ func buildConfig(masterURL, kubeconfigPath string) (*rest.Config, error) {
 }
 
 // startMetricsServer starts the Prometheus metrics server.
-func startMetricsServer(addr string, leaderElection *controller.LeaderElection) {
+func startMetricsServer(addr string, mgr ctrl.Manager) {
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", promhttp.Handler())
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
@@ -315,12 +206,8 @@ func startMetricsServer(addr string, leaderElection *controller.LeaderElection) 
 		_, _ = w.Write([]byte("OK"))
 	})
 	mux.HandleFunc("/readyz", func(w http.ResponseWriter, r *http.Request) {
-		// If leader election is enabled, only the leader should be ready
-		if leaderElection != nil && !leaderElection.IsLeader() {
-			w.WriteHeader(http.StatusServiceUnavailable)
-			_, _ = w.Write([]byte("Not leader"))
-			return
-		}
+		// Use manager's health check endpoint if available
+		// For now, just return OK - controller-runtime manager handles readiness internally
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("OK"))
 	})
