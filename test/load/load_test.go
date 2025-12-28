@@ -147,7 +147,9 @@ func TestConcurrentJobFlowCreation(t *testing.T) {
 
 	ctx := context.Background()
 	scheme := runtime.NewScheme()
-	v1alpha1.AddToScheme(scheme)
+	if err := v1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatalf("Failed to add scheme: %v", err)
+	}
 	dynamicClient := dynamicfake.NewSimpleDynamicClient(scheme)
 
 	results := &LoadTestResults{
@@ -218,7 +220,9 @@ func TestLargeDAGExecution(t *testing.T) {
 
 	ctx := context.Background()
 	scheme := runtime.NewScheme()
-	v1alpha1.AddToScheme(scheme)
+	if err := v1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatalf("Failed to add scheme: %v", err)
+	}
 	dynamicClient := dynamicfake.NewSimpleDynamicClient(scheme)
 
 	results := &LoadTestResults{}
@@ -263,7 +267,9 @@ func TestManyStepsPerFlow(t *testing.T) {
 
 	ctx := context.Background()
 	scheme := runtime.NewScheme()
-	v1alpha1.AddToScheme(scheme)
+	if err := v1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatalf("Failed to add scheme: %v", err)
+	}
 	dynamicClient := dynamicfake.NewSimpleDynamicClient(scheme)
 
 	results := &LoadTestResults{}
@@ -309,7 +315,9 @@ func TestSustainedLoad(t *testing.T) {
 
 	ctx := context.Background()
 	scheme := runtime.NewScheme()
-	v1alpha1.AddToScheme(scheme)
+	if err := v1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatalf("Failed to add scheme: %v", err)
+	}
 	dynamicClient := dynamicfake.NewSimpleDynamicClient(scheme)
 	ctx, cancel := context.WithTimeout(ctx, config.TestDuration)
 	defer cancel()
@@ -386,7 +394,9 @@ func toUnstructured(jobFlow *v1alpha1.JobFlow) *unstructured.Unstructured {
 func BenchmarkJobFlowCreation(b *testing.B) {
 	ctx := context.Background()
 	scheme := runtime.NewScheme()
-	v1alpha1.AddToScheme(scheme)
+	if err := v1alpha1.AddToScheme(scheme); err != nil {
+		b.Fatalf("Failed to add scheme: %v", err)
+	}
 	dynamicClient := dynamicfake.NewSimpleDynamicClient(scheme)
 	namespace := "benchmark"
 

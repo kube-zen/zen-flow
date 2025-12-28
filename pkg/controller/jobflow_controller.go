@@ -67,9 +67,6 @@ type JobFlowController struct {
 	jobFlowQueue workqueue.RateLimitingInterface
 	jobQueue     workqueue.RateLimitingInterface
 
-	// Caches
-	stepExecutorCache sync.Map
-
 	// Status updater
 	statusUpdater *StatusUpdater
 
@@ -128,17 +125,23 @@ func (c *JobFlowController) Start() error {
 	logger.Info("Starting JobFlow controller...")
 
 	// Set up event handlers
-	c.jobFlowInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+	_, err := c.jobFlowInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    c.enqueueJobFlow,
 		UpdateFunc: func(oldObj, newObj interface{}) { c.enqueueJobFlow(newObj) },
 		DeleteFunc: c.enqueueJobFlow,
 	})
+	if err != nil {
+		return fmt.Errorf("failed to add JobFlow event handler: %w", err)
+	}
 
-	c.jobInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	_, err = c.jobInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    c.handleJobAdd,
 		UpdateFunc: c.handleJobUpdate,
 		DeleteFunc: c.handleJobDelete,
 	})
+	if err != nil {
+		return fmt.Errorf("failed to add Job event handler: %w", err)
+	}
 
 	// Start workers
 	for i := 0; i < c.maxConcurrentReconciles; i++ {

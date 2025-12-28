@@ -304,7 +304,9 @@ func TestJobFlowController_executeStep_JobAlreadyExists(t *testing.T) {
 		t.Fatalf("Failed to create job: %v", err)
 	}
 	// Add to informer
-	jobInformer.Informer().GetStore().Add(existingJob)
+	if err := jobInformer.Informer().GetStore().Add(existingJob); err != nil {
+		t.Fatalf("Failed to add job to informer store: %v", err)
+	}
 
 	jobFlow := &v1alpha1.JobFlow{
 		ObjectMeta: metav1.ObjectMeta{

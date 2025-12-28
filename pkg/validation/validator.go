@@ -257,7 +257,7 @@ func validateStepTemplate(step *v1alpha1.Step, index int) error {
 // validateJobSpec validates a Kubernetes Job spec.
 func validateJobSpec(jobSpec *batchv1.JobSpec) error {
 	// Validate template
-	if jobSpec.Template.Spec.Containers == nil || len(jobSpec.Template.Spec.Containers) == 0 {
+	if len(jobSpec.Template.Spec.Containers) == 0 {
 		return fmt.Errorf("Job spec must have at least one container")
 	}
 
@@ -394,7 +394,7 @@ func validatePVCTemplate(pvc *corev1.PersistentVolumeClaim, index int) error {
 	}
 
 	// Validate resources
-	if pvc.Spec.Resources.Requests == nil || len(pvc.Spec.Resources.Requests) == 0 {
+	if len(pvc.Spec.Resources.Requests) == 0 {
 		return fmt.Errorf("PVC %q: resources.requests cannot be empty", pvc.Name)
 	}
 
