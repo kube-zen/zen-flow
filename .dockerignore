@@ -1,0 +1,37 @@
+# Git
+.git
+.gitignore
+
+# Build artifacts
+bin/
+*.out
+*.html
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Documentation
+*.md
+!README.md
+
+# Examples and tests
+examples/
+test/
+hack/
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+
+# Temporary files
+tmp/
+temp/
+*.log
+

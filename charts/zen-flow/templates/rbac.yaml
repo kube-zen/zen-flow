@@ -1,0 +1,35 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "zen-flow.fullname" . }}
+  labels:
+    {{- include "zen-flow.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["workflow.zen.io"]
+    resources: ["jobflows", "jobflows/status", "jobflows/finalizers"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims", "configmaps", "secrets", "events", "pods"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "zen-flow.fullname" . }}
+  labels:
+    {{- include "zen-flow.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "zen-flow.fullname" . }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "zen-flow.serviceAccountName" . }}
+    namespace: {{ include "zen-flow.namespace" . }}
+

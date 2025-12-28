@@ -1,0 +1,107 @@
+# Copyright 2025 Kube-ZEN Contributors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: zen-flow-alerts
+  namespace: zen-flow-system
+  labels:
+    app: zen-flow-controller
+    prometheus: kube-prometheus
+    role: alert-rules
+spec:
+  groups:
+    - name: zen-flow.rules
+      interval: 30s
+      rules:
+        # Alert when zen-flow controller is down
+        - alert: ZenFlowControllerDown
+          expr: up{job="zen-flow-controller"} == 0
+          for: 5m
+          labels:
+            severity: critical
+            component: zen-flow-controller
+          annotations:
+            summary: "zen-flow Controller is down"
+            description: "zen-flow Controller has been down for more than 5 minutes."
+        # Alert on high reconciliation error rate
+        - alert: ZenFlowHighReconciliationErrorRate
+          expr: rate(zen_flow_reconciliation_duration_seconds_count{status="error"}[5m]) > 10
+          for: 5m
+          labels:
+            severity: warning
+            component: zen-flow-controller
+          annotations:
+            summary: "High zen-flow reconciliation error rate detected"
+            description: >
+              zen-flow Controller is experiencing {{ $value }} reconciliation errors per second.
+        # Alert on step execution failures
+        - alert: ZenFlowStepExecutionFailures
+          expr: rate(zen_flow_step_phase_total{phase="Failed"}[5m]) > 5
+          for: 10m
+          labels:
+            severity: warning
+            component: zen-flow-controller
+          annotations:
+            summary: "High step execution failure rate"
+            description: >
+              zen-flow Controller is failing to execute steps at a high rate.
+        # Alert on JobFlow stuck in Running state
+        - alert: ZenFlowJobFlowStuck
+          expr: zen_flow_jobflow_phase_total{phase="Running"} > 0 AND on(flow_name) (time() - zen_flow_jobflow_start_time_seconds) > 3600
+          for: 30m
+          labels:
+            severity: warning
+            component: zen-flow-controller
+          annotations:
+            summary: "JobFlow stuck in Running state"
+            description: >
+              JobFlow {{ $labels.flow_name }} has been in Running state for more than 1 hour.
+        # Alert on slow step execution
+        - alert: ZenFlowSlowStepExecution
+          expr: >
+            histogram_quantile(0.95,
+            rate(zen_flow_step_duration_seconds_bucket[5m])) > 300
+          for: 10m
+          labels:
+            severity: warning
+            component: zen-flow-controller
+          annotations:
+            summary: "Slow step execution detected"
+            description: >
+              95th percentile step execution duration is high ({{ $value }}s).
+        # Alert on high job creation failure rate
+        - alert: ZenFlowHighJobCreationFailureRate
+          expr: rate(zen_flow_step_phase_total{phase="Failed",reason="job_creation_failed"}[5m]) > 2
+          for: 5m
+          labels:
+            severity: warning
+            component: zen-flow-controller
+          annotations:
+            summary: "High job creation failure rate"
+            description: >
+              zen-flow Controller is failing to create Jobs at a high rate.
+        # Alert when no JobFlows are active (may indicate issues)
+        - alert: ZenFlowNoActiveJobFlows
+          expr: zen_flow_jobflow_phase_total{phase="Running"} == 0 AND zen_flow_jobflow_phase_total{phase="Pending"} == 0
+          for: 1h
+          labels:
+            severity: info
+            component: zen-flow-controller
+          annotations:
+            summary: "No active JobFlows"
+            description: >
+              No active JobFlows are configured or running.
+              This may be expected if JobFlows are not needed.
+
