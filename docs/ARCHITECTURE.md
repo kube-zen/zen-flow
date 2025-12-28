@@ -2,7 +2,7 @@
 
 ## Overview
 
-`zen-flow` is a Kubernetes-native job orchestration controller that provides declarative, sequential execution of Kubernetes Jobs using standard CRDs. It follows the standard Kubernetes controller pattern with informers, work queues, and reconciliation loops.
+`zen-flow` is a Kubernetes-native job orchestration controller that provides declarative, sequential execution of Kubernetes Jobs using standard CRDs. It follows the standard Kubernetes controller pattern using the **controller-runtime** framework with informers, work queues, and reconciliation loops.
 
 ## System Architecture
 
@@ -45,31 +45,35 @@
 ### 1. Main Controller (`cmd/zen-flow-controller/main.go`)
 
 The entry point that:
-- Initializes Kubernetes clients (dynamic, core)
-- Sets up leader election for HA
-- Creates and starts the JobFlow controller
+- Initializes controller-runtime manager
+- Sets up leader election for HA (via controller-runtime)
+- Registers JobFlow reconciler
 - Configures metrics server
-- Handles graceful shutdown
+- Handles graceful shutdown (via controller-runtime)
 
-### 2. JobFlow Controller (`pkg/controller/jobflow_controller.go`)
+### 2. JobFlow Reconciler (`pkg/controller/reconciler.go`)
 
-Core controller logic:
+Core reconciliation logic using controller-runtime:
 
 **Responsibilities:**
-- Watch `JobFlow` CRDs
+- Reconcile `JobFlow` CRDs
 - Create execution plans from DAG
 - Execute steps in topological order
 - Monitor Job status
 - Update JobFlow status
 - Emit metrics and events
+- Handle TTL cleanup, retries, timeouts, and policies
 
 **Key Methods:**
-- `NewJobFlowController()`: Initialize controller with clients
-- `Start()`: Start informers and workers
-- `reconcileJobFlow()`: Main reconciliation loop
+- `Reconcile()`: Main reconciliation entry point (controller-runtime)
 - `createExecutionPlan()`: Build DAG and execution plan
 - `executeStep()`: Execute a single step
 - `updateJobFlowStatus()`: Update status
+- `checkStepTimeouts()`: Enforce step timeouts
+- `handleStepRetry()`: Handle step retries
+- `checkConcurrencyPolicy()`: Enforce concurrency policies
+- `checkPodFailurePolicy()`: Evaluate pod failure policies
+- `shouldDeleteJobFlow()`: Check TTL for cleanup
 
 ### 3. DAG Engine (`pkg/controller/dag/dag.go`)
 

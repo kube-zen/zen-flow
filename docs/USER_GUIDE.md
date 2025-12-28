@@ -16,6 +16,12 @@ zen-flow makes it easy to orchestrate Kubernetes Jobs in a declarative way with 
 - [Creating JobFlows](#creating-jobflows)
 - [Step Dependencies](#step-dependencies)
 - [Execution Policies](#execution-policies)
+- [Step Retries](#step-retries)
+- [Step Timeouts](#step-timeouts)
+- [Concurrency Control](#concurrency-control)
+- [Pod Failure Policies](#pod-failure-policies)
+- [When Conditions](#when-conditions)
+- [TTL Cleanup](#ttl-cleanup)
 - [Resource Templates](#resource-templates)
 - [Examples](#examples)
 - [Troubleshooting](#troubleshooting)
@@ -179,6 +185,224 @@ Maximum duration for the entire flow.
 
 ---
 
+## Step Retries
+
+Configure automatic retries for failed steps with configurable backoff strategies.
+
+### Retry Policy
+
+```yaml
+steps:
+  - name: api-call
+    retryPolicy:
+      limit: 3  # Maximum retries (default: 3)
+      backoff:
+        type: Exponential  # Exponential, Linear, or Fixed
+        factor: 2.0  # Backoff factor for exponential (default: 2.0)
+        duration: "10s"  # Base duration
+    template: ...
+```
+
+### Backoff Types
+
+- **Exponential**: `duration * factor^retryCount` (e.g., 10s, 20s, 40s, 80s)
+- **Linear**: `duration * (retryCount + 1)` (e.g., 10s, 20s, 30s, 40s)
+- **Fixed**: `duration` (e.g., 10s, 10s, 10s, 10s)
+
+### Example
+
+```yaml
+steps:
+  - name: flaky-service
+    retryPolicy:
+      limit: 5
+      backoff:
+        type: Exponential
+        factor: 2.0
+        duration: "5s"
+    template:
+      apiVersion: batch/v1
+      kind: Job
+      spec:
+        template:
+          spec:
+            containers:
+              - name: main
+                image: myapp:latest
+                command: ["curl", "https://api.example.com"]
+            restartPolicy: OnFailure
+```
+
+---
+
+## Step Timeouts
+
+Enforce maximum execution time for individual steps.
+
+### Configuration
+
+```yaml
+steps:
+  - name: data-processing
+    timeoutSeconds: 3600  # 1 hour timeout
+    template: ...
+```
+
+### Behavior
+
+- Step is marked as failed if timeout is exceeded
+- Job is automatically deleted when timeout occurs
+- Flow continues or fails based on `continueOnFailure` setting
+
+### Example
+
+```yaml
+steps:
+  - name: long-task
+    timeoutSeconds: 7200  # 2 hours
+    continueOnFailure: false
+    template:
+      apiVersion: batch/v1
+      kind: Job
+      spec:
+        template:
+          spec:
+            containers:
+              - name: main
+                image: processor:latest
+                command: ["process", "--input", "/data"]
+            restartPolicy: OnFailure
+```
+
+---
+
+## Concurrency Control
+
+Control how multiple JobFlow instances with the same name are handled.
+
+### Policies
+
+- **Allow**: Multiple executions can run concurrently
+- **Forbid**: Only one execution at a time (default)
+- **Replace**: Cancel existing execution and start new one
+
+### Example
+
+```yaml
+apiVersion: workflow.zen.io/v1alpha1
+kind: JobFlow
+metadata:
+  name: scheduled-job
+spec:
+  executionPolicy:
+    concurrencyPolicy: Forbid  # Prevent concurrent executions
+  steps:
+    - name: task
+      template: ...
+```
+
+---
+
+## Pod Failure Policies
+
+Handle pod failures based on exit codes and container names.
+
+### Configuration
+
+```yaml
+executionPolicy:
+  podFailurePolicy:
+    rules:
+      - action: Ignore  # Ignore, Count, or FailJob
+        onExitCodes:
+          containerName: main  # Optional, defaults to "main"
+          operator: In  # In or NotIn
+          values: [1, 2]  # Exit codes to match
+```
+
+### Actions
+
+- **Ignore**: Don't mark step as failed
+- **Count**: Count the failure but don't fail the step
+- **FailJob**: Mark step as failed (default)
+
+### Example
+
+```yaml
+executionPolicy:
+  podFailurePolicy:
+    rules:
+      # Ignore expected exit codes
+      - action: Ignore
+        onExitCodes:
+          operator: In
+          values: [1, 2]
+      # Fail on any other non-zero exit code
+      - action: FailJob
+        onExitCodes:
+          operator: NotIn
+          values: [0]
+```
+
+---
+
+## When Conditions
+
+Conditionally execute steps based on conditions (basic implementation).
+
+### Configuration
+
+```yaml
+steps:
+  - name: conditional-step
+    when: "always"  # Condition expression
+    template: ...
+```
+
+### Supported Values
+
+- `always` or `true`: Always execute
+- `never` or `false`: Never execute
+
+**Note**: Full template engine support for step status evaluation is planned for future releases.
+
+---
+
+## TTL Cleanup
+
+Automatically delete completed JobFlows after a specified time.
+
+### Configuration
+
+```yaml
+executionPolicy:
+  ttlSecondsAfterFinished: 3600  # 1 hour (default: 86400 = 24 hours)
+```
+
+### Behavior
+
+- JobFlow is automatically deleted after TTL expires
+- TTL starts counting from `completionTime`
+- Set to `0` for immediate deletion after completion
+- Default is 24 hours (86400 seconds)
+
+### Example
+
+```yaml
+apiVersion: workflow.zen.io/v1alpha1
+kind: JobFlow
+metadata:
+  name: temporary-job
+spec:
+  executionPolicy:
+    ttlSecondsAfterFinished: 3600  # Clean up after 1 hour
+  steps:
+    - name: task
+      template: ...
+```
+
+---
+
 ## Resource Templates
 
 Create PVCs and ConfigMaps before executing steps:
@@ -245,7 +469,42 @@ steps:
       limit: 5
       backoff:
         type: Exponential
+        factor: 2.0
         duration: "10s"
+    template: ...
+```
+
+### With Timeouts
+
+```yaml
+steps:
+  - name: long-running-step
+    timeoutSeconds: 3600  # 1 hour
+    template: ...
+```
+
+### With Pod Failure Policy
+
+```yaml
+executionPolicy:
+  podFailurePolicy:
+    rules:
+      - action: Ignore
+        onExitCodes:
+          operator: In
+          values: [1, 2]  # Ignore exit codes 1 and 2
+      - action: FailJob
+        onExitCodes:
+          operator: NotIn
+          values: [0]  # Fail on any non-zero exit code
+```
+
+### With When Conditions
+
+```yaml
+steps:
+  - name: conditional-step
+    when: "always"  # Basic condition (can be enhanced with template engine)
     template: ...
 ```
 

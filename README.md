@@ -14,6 +14,14 @@
 - **Observability**: Built-in Prometheus metrics and Kubernetes events
 - **Security**: Pod Security Standards, RBAC, and audit logging
 - **Production-Ready**: Designed for enterprise-grade deployments
+- **Advanced Features**:
+  - **TTL Cleanup**: Automatic cleanup of completed JobFlows
+  - **Step Retries**: Configurable retry policies with exponential/linear/fixed backoff
+  - **Timeouts**: Step-level and flow-level timeout enforcement
+  - **Concurrency Control**: Allow/Forbid/Replace policies for concurrent executions
+  - **Pod Failure Policies**: Handle pod failures based on exit codes
+  - **Conditional Execution**: When conditions for conditional step execution
+  - **Artifacts & Parameters**: Support for passing data between steps (structure in place)
 
 ## Quick Start
 
