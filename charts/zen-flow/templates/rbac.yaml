@@ -5,15 +5,30 @@ metadata:
   labels:
     {{- include "zen-flow.labels" . | nindent 4 }}
 rules:
+  # JobFlow CRD: Read-only access + status updates
   - apiGroups: ["workflow.zen.io"]
-    resources: ["jobflows", "jobflows/status", "jobflows/finalizers"]
-    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    resources: ["jobflows"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["workflow.zen.io"]
+    resources: ["jobflows/status"]
+    verbs: ["get", "update", "patch"]
+  # Jobs: Read access + create (controller creates Jobs for steps)
   - apiGroups: ["batch"]
     resources: ["jobs"]
-    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    verbs: ["get", "list", "watch", "create"]
+  # Core resources: Read access + create for PVCs/ConfigMaps (from resource templates)
   - apiGroups: [""]
-    resources: ["persistentvolumeclaims", "configmaps", "secrets", "events", "pods"]
-    verbs: ["get", "list", "watch", "create", "update", "patch"]
+    resources: ["persistentvolumeclaims", "configmaps"]
+    verbs: ["get", "list", "watch", "create"]
+  # Events: Create only (for event recording)
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create"]
+  # Pods: Read-only access (via informer for monitoring)
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  # Leases: Full access (for leader election)
   - apiGroups: ["coordination.k8s.io"]
     resources: ["leases"]
     verbs: ["get", "list", "watch", "create", "update", "patch"]
