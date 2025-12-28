@@ -43,7 +43,9 @@ import (
 // setupTestControllerE2E creates a test controller with fake clients for E2E tests
 func setupTestControllerE2E(t *testing.T) (*controller.JobFlowController, *fake.FakeDynamicClient, *kubefake.Clientset, cache.SharedInformer) {
 	scheme := runtime.NewScheme()
-	v1alpha1.AddToScheme(scheme)
+	if err := v1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatalf("Failed to add scheme: %v", err)
+	}
 
 	dynamicClient := fake.NewSimpleDynamicClient(scheme)
 	kubeClient := kubefake.NewSimpleClientset()
@@ -100,7 +102,9 @@ func createJobFlowInClient(t *testing.T, dynamicClient *fake.FakeDynamicClient, 
 
 	// Add to informer store
 	if jobFlowInformer != nil {
-		jobFlowInformer.GetStore().Add(unstructuredJobFlow)
+		if err := jobFlowInformer.GetStore().Add(unstructuredJobFlow); err != nil {
+			t.Fatalf("Failed to add JobFlow to informer store: %v", err)
+		}
 	}
 
 	return unstructuredJobFlow

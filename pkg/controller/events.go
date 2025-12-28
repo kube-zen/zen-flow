@@ -35,15 +35,15 @@ type eventSinkWrapper struct {
 }
 
 func (e *eventSinkWrapper) Create(event *corev1.Event) (*corev1.Event, error) {
-	return e.events.Create(context.Background(), event, metav1.CreateOptions{})
+	return e.events.Create(context.TODO(), event, metav1.CreateOptions{})
 }
 
 func (e *eventSinkWrapper) Update(event *corev1.Event) (*corev1.Event, error) {
-	return e.events.Update(context.Background(), event, metav1.UpdateOptions{})
+	return e.events.Update(context.TODO(), event, metav1.UpdateOptions{})
 }
 
 func (e *eventSinkWrapper) Patch(oldEvent *corev1.Event, data []byte) (*corev1.Event, error) {
-	return e.events.Patch(context.Background(), oldEvent.Name, types.MergePatchType, data, metav1.PatchOptions{})
+	return e.events.Patch(context.TODO(), oldEvent.Name, types.MergePatchType, data, metav1.PatchOptions{})
 }
 
 // EventRecorder records events for JobFlow resources.
