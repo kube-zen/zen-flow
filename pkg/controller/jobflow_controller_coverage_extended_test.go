@@ -117,7 +117,11 @@ func TestJobFlowController_createExecutionPlan_Extended(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dagGraph := buildDAGForTest(tt.steps)
-			plan := controller.createExecutionPlan(dagGraph, tt.status)
+			sortedSteps, err := dagGraph.TopologicalSort()
+			if err != nil {
+				t.Fatalf("TopologicalSort returned error: %v", err)
+			}
+			plan := controller.createExecutionPlan(dagGraph, tt.status, sortedSteps)
 			if len(plan.ReadySteps) != tt.expected {
 				t.Errorf("Expected %d ready steps, got %d", tt.expected, len(plan.ReadySteps))
 			}

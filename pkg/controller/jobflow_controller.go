@@ -292,7 +292,16 @@ func (c *JobFlowController) reconcileJobFlow(ctx context.Context, key string) er
 	// Validate JobFlow
 	if err := c.validateJobFlow(jobFlow); err != nil {
 		logger.WithError(err).Warning("JobFlow validation failed")
-		return c.updateStatus(jobFlow, v1alpha1.JobFlowPhaseFailed, err)
+		// P0.2: Persist validation failure status
+		jobFlow.Status.Phase = v1alpha1.JobFlowPhaseFailed
+		jobFlow.Status.Conditions = append(jobFlow.Status.Conditions, v1alpha1.JobFlowCondition{
+			Type:               "Ready",
+			Status:             corev1.ConditionFalse,
+			LastTransitionTime: metav1.Now(),
+			Reason:             "ValidationFailed",
+			Message:            err.Error(),
+		})
+		return c.updateJobFlowStatus(ctx, jobFlow, nil)
 	}
 
 	// Initialize if needed
@@ -304,8 +313,33 @@ func (c *JobFlowController) reconcileJobFlow(ctx context.Context, key string) er
 	// Build DAG
 	dagGraph := dag.BuildDAG(jobFlow.Spec.Steps)
 
+	// P0.4: Check for cycles in DAG
+	sortedSteps, err := dagGraph.TopologicalSort()
+	if err != nil {
+		logger.WithError(err).Error("DAG cycle detected")
+		jobFlow.Status.Phase = v1alpha1.JobFlowPhaseFailed
+		jobFlow.Status.Conditions = append(jobFlow.Status.Conditions, v1alpha1.JobFlowCondition{
+			Type:               "Ready",
+			Status:             corev1.ConditionFalse,
+			LastTransitionTime: metav1.Now(),
+			Reason:             "DAGCycle",
+			Message:            err.Error(),
+		})
+		return c.updateJobFlowStatus(ctx, jobFlow, nil)
+	}
+
+	// P0.1: Refresh step status from Jobs for any step with JobRef (Running/Pending-with-JobRef)
+	if err := c.refreshStepStatuses(ctx, jobFlow); err != nil {
+		if c.isRetryable(err) {
+			logger.WithError(err).V(4).Info("Retryable error refreshing step statuses, will retry")
+			return err
+		}
+		logger.WithError(err).Error("Failed to refresh step statuses")
+		// Continue with execution plan despite refresh errors
+	}
+
 	// Create execution plan
-	executionPlan := c.createExecutionPlan(dagGraph, jobFlow.Status)
+	executionPlan := c.createExecutionPlan(dagGraph, jobFlow.Status, sortedSteps)
 
 	// Execute ready steps
 	for _, stepName := range executionPlan.ReadySteps {
@@ -445,20 +479,97 @@ type ExecutionPlan struct {
 	ReadySteps []string
 }
 
+// refreshStepStatuses refreshes step statuses from Jobs for any step with a JobRef.
+// P0.1: This ensures Running steps are reconciled to completion.
+func (c *JobFlowController) refreshStepStatuses(ctx context.Context, jobFlow *v1alpha1.JobFlow) error {
+	logger := logging.FromContext(ctx).WithJobFlow(jobFlow.Namespace, jobFlow.Name)
+
+	for i := range jobFlow.Status.Steps {
+		stepStatus := &jobFlow.Status.Steps[i]
+		// Only refresh steps that have a JobRef (Running or Pending-with-JobRef)
+		if stepStatus.JobRef == nil {
+			continue
+		}
+
+		// Get the Job to check its current status
+		job, err := c.jobInformer.Lister().Jobs(jobFlow.Namespace).Get(stepStatus.JobRef.Name)
+		if err != nil {
+			if k8serrors.IsNotFound(err) {
+				// Job was deleted, mark step as failed
+				logger.WithStep(stepStatus.Name).Warning("Job not found, marking step as failed")
+				stepStatus.Phase = v1alpha1.StepPhaseFailed
+				now := metav1.Now()
+				stepStatus.CompletionTime = &now
+				stepStatus.Message = fmt.Sprintf("Job %s not found", stepStatus.JobRef.Name)
+				continue
+			}
+			return jferrors.WithStep(jferrors.WithJobFlow(jferrors.Wrapf(err, "job_get_failed", "failed to get Job %s", stepStatus.JobRef.Name), jobFlow.Namespace, jobFlow.Name), stepStatus.Name)
+		}
+
+		// Update step status based on job status (in memory only, don't write to API yet)
+		c.refreshStepStatusFromJob(jobFlow, stepStatus.Name, job)
+	}
+
+	return nil
+}
+
+// refreshStepStatusFromJob updates step status in memory based on job status.
+// This is used during refresh to avoid multiple API writes.
+func (c *JobFlowController) refreshStepStatusFromJob(jobFlow *v1alpha1.JobFlow, stepName string, job *batchv1.Job) {
+	stepStatus := c.getStepStatus(jobFlow.Status, stepName)
+	if stepStatus == nil {
+		return
+	}
+
+	// Update phase based on job conditions
+	if job.Status.Succeeded > 0 {
+		stepStatus.Phase = v1alpha1.StepPhaseSucceeded
+		now := metav1.Now()
+		stepStatus.CompletionTime = &now
+		c.metricsRecorder.RecordStepPhase(jobFlow.Name, v1alpha1.StepPhaseSucceeded)
+	} else if job.Status.Failed > 0 {
+		stepStatus.Phase = v1alpha1.StepPhaseFailed
+		now := metav1.Now()
+		stepStatus.CompletionTime = &now
+		c.metricsRecorder.RecordStepPhase(jobFlow.Name, v1alpha1.StepPhaseFailed)
+	} else {
+		stepStatus.Phase = v1alpha1.StepPhaseRunning
+	}
+}
+
 // createExecutionPlan creates an execution plan based on the DAG and current status.
-func (c *JobFlowController) createExecutionPlan(dagGraph *dag.Graph, status v1alpha1.JobFlowStatus) *ExecutionPlan {
+func (c *JobFlowController) createExecutionPlan(dagGraph *dag.Graph, status v1alpha1.JobFlowStatus, sortedSteps []string) *ExecutionPlan {
 	plan := &ExecutionPlan{}
 
-	// Find ready steps (steps whose dependencies are satisfied)
+	// P0.3: Find completed steps (Succeeded OR Failed with ContinueOnFailure)
 	completedSteps := make(map[string]bool)
-	for _, stepStatus := range status.Steps {
+	stepSpecs := make(map[string]*v1alpha1.Step)
+	
+	// Build step spec map for ContinueOnFailure lookup from DAG graph
+	for _, stepName := range sortedSteps {
+		node := dagGraph.GetStep(stepName)
+		if node != nil && node.Step != nil {
+			stepSpecs[stepName] = node.Step
+		}
+	}
+	
+	// Mark steps as completed based on their phase and ContinueOnFailure setting
+	for i := range status.Steps {
+		stepStatus := &status.Steps[i]
+		
+		// Mark as completed if succeeded
 		if stepStatus.Phase == v1alpha1.StepPhaseSucceeded {
 			completedSteps[stepStatus.Name] = true
+		} else if stepStatus.Phase == v1alpha1.StepPhaseFailed {
+			// P0.3: Failed steps complete if ContinueOnFailure is true
+			if spec, ok := stepSpecs[stepStatus.Name]; ok && spec.ContinueOnFailure {
+				completedSteps[stepStatus.Name] = true
+			}
 		}
 	}
 
 	// Find steps that are ready to execute
-	for _, stepName := range dagGraph.TopologicalSort() {
+	for _, stepName := range sortedSteps {
 		stepStatus := c.getStepStatus(status, stepName)
 		if stepStatus != nil && stepStatus.Phase != v1alpha1.StepPhasePending {
 			continue // Already started or completed
@@ -760,7 +871,9 @@ func (c *JobFlowController) updateJobFlowStatus(ctx context.Context, jobFlow *v1
 	return nil
 }
 
-// updateStatus is a helper to update status with phase and error.
+// updateStatus is deprecated. Use updateJobFlowStatus instead.
+// This function is kept for backward compatibility but should not be used for new code.
+// P0.2: Validation failures should use updateJobFlowStatus to persist status.
 func (c *JobFlowController) updateStatus(jobFlow *v1alpha1.JobFlow, phase string, err error) error {
 	logger := logging.NewLogger().WithJobFlow(jobFlow.Namespace, jobFlow.Name)
 

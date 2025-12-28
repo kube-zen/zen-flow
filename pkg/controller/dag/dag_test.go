@@ -66,7 +66,10 @@ func TestBuildDAG_LinearDependencies(t *testing.T) {
 	}
 	graph := BuildDAG(steps)
 
-	sorted := graph.TopologicalSort()
+	sorted, err := graph.TopologicalSort()
+	if err != nil {
+		t.Fatalf("TopologicalSort returned error: %v", err)
+	}
 	expected := []string{"step1", "step2", "step3"}
 
 	if len(sorted) != len(expected) {
@@ -88,9 +91,12 @@ func TestBuildDAG_ParallelSteps(t *testing.T) {
 	}
 	graph := BuildDAG(steps)
 
-	sorted := graph.TopologicalSort()
+	sorted, err := graph.TopologicalSort()
+	if err != nil {
+		t.Fatalf("TopologicalSort returned error: %v", err)
+	}
 	if sorted == nil {
-		t.Fatal("TopologicalSort returned nil (cycle detected)")
+		t.Fatal("TopologicalSort returned nil")
 	}
 
 	// step1 and step2 should come before step3
@@ -129,9 +135,12 @@ func TestBuildDAG_ComplexDAG(t *testing.T) {
 	}
 	graph := BuildDAG(steps)
 
-	sorted := graph.TopologicalSort()
+	sorted, err := graph.TopologicalSort()
+	if err != nil {
+		t.Fatalf("TopologicalSort returned error: %v", err)
+	}
 	if sorted == nil {
-		t.Fatal("TopologicalSort returned nil (cycle detected)")
+		t.Fatal("TopologicalSort returned nil")
 	}
 
 	// Verify dependencies are respected
@@ -165,9 +174,12 @@ func TestBuildDAG_CycleDetection(t *testing.T) {
 	}
 	graph := BuildDAG(steps)
 
-	sorted := graph.TopologicalSort()
+	sorted, err := graph.TopologicalSort()
+	if err == nil {
+		t.Error("Expected cycle detection to return error, but got nil")
+	}
 	if sorted != nil {
-		t.Error("Expected cycle detection to return nil, but got sorted list")
+		t.Error("Expected cycle detection to return nil sorted list, but got sorted list")
 	}
 }
 
@@ -194,8 +206,11 @@ func TestBuildDAG_GetStep(t *testing.T) {
 
 func TestTopologicalSort_EmptyGraph(t *testing.T) {
 	graph := &Graph{steps: make(map[string]*StepNode)}
-	sorted := graph.TopologicalSort()
+	sorted, err := graph.TopologicalSort()
 
+	if err != nil {
+		t.Fatalf("TopologicalSort returned error: %v", err)
+	}
 	if sorted == nil {
 		t.Error("TopologicalSort returned nil for empty graph")
 	}

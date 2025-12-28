@@ -59,7 +59,8 @@ func (g *Graph) GetStep(name string) *StepNode {
 }
 
 // TopologicalSort performs a topological sort of the DAG.
-func (g *Graph) TopologicalSort() []string {
+// Returns the sorted step names and an error if a cycle is detected.
+func (g *Graph) TopologicalSort() ([]string, error) {
 	visited := make(map[string]bool)
 	tempMark := make(map[string]bool)
 	result := make([]string, 0)
@@ -67,7 +68,7 @@ func (g *Graph) TopologicalSort() []string {
 	var visit func(string) error
 	visit = func(name string) error {
 		if tempMark[name] {
-			return fmt.Errorf("cycle detected in DAG")
+			return fmt.Errorf("cycle detected in DAG involving step: %s", name)
 		}
 		if visited[name] {
 			return nil
@@ -91,10 +92,10 @@ func (g *Graph) TopologicalSort() []string {
 	for name := range g.steps {
 		if !visited[name] {
 			if err := visit(name); err != nil {
-				return nil
+				return nil, err
 			}
 		}
 	}
 
-	return result
+	return result, nil
 }
