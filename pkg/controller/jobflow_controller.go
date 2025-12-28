@@ -87,6 +87,12 @@ type JobFlowController struct {
 	shutdownOnce     sync.Once
 }
 
+// SetMaxConcurrentReconciles sets the maximum number of concurrent reconciles.
+// P0.7: Allows configuring max concurrent reconciles after controller creation.
+func (c *JobFlowController) SetMaxConcurrentReconciles(max int) {
+	c.maxConcurrentReconciles = max
+}
+
 // NewJobFlowController creates a new JobFlow controller.
 func NewJobFlowController(
 	dynamicClient dynamic.Interface,
@@ -515,6 +521,7 @@ func (c *JobFlowController) refreshStepStatuses(ctx context.Context, jobFlow *v1
 
 // refreshStepStatusFromJob updates step status in memory based on job status.
 // This is used during refresh to avoid multiple API writes.
+// P0.8: Tracks phase transitions properly.
 func (c *JobFlowController) refreshStepStatusFromJob(jobFlow *v1alpha1.JobFlow, stepName string, job *batchv1.Job) {
 	stepStatus := c.getStepStatus(jobFlow.Status, stepName)
 	if stepStatus == nil {
@@ -522,18 +529,24 @@ func (c *JobFlowController) refreshStepStatusFromJob(jobFlow *v1alpha1.JobFlow, 
 	}
 
 	// Update phase based on job conditions
+	oldPhase := stepStatus.Phase
+	newPhase := stepStatus.Phase
+	
 	if job.Status.Succeeded > 0 {
-		stepStatus.Phase = v1alpha1.StepPhaseSucceeded
+		newPhase = v1alpha1.StepPhaseSucceeded
 		now := metav1.Now()
 		stepStatus.CompletionTime = &now
-		c.metricsRecorder.RecordStepPhase(jobFlow.Name, v1alpha1.StepPhaseSucceeded)
 	} else if job.Status.Failed > 0 {
-		stepStatus.Phase = v1alpha1.StepPhaseFailed
+		newPhase = v1alpha1.StepPhaseFailed
 		now := metav1.Now()
 		stepStatus.CompletionTime = &now
-		c.metricsRecorder.RecordStepPhase(jobFlow.Name, v1alpha1.StepPhaseFailed)
 	} else {
-		stepStatus.Phase = v1alpha1.StepPhaseRunning
+		newPhase = v1alpha1.StepPhaseRunning
+	}
+	
+	stepStatus.Phase = newPhase
+	if oldPhase != newPhase {
+		c.metricsRecorder.RecordStepPhaseTransition(jobFlow.Name, stepName, oldPhase, newPhase)
 	}
 }
 
@@ -727,21 +740,28 @@ func (c *JobFlowController) updateStepStatusFromJob(ctx context.Context, jobFlow
 	}
 
 	// Update phase based on job conditions
+	// P0.8: Track phase transitions properly
+	oldPhase := stepStatus.Phase
+	newPhase := stepStatus.Phase
+	
 	if job.Status.Succeeded > 0 {
-		stepStatus.Phase = v1alpha1.StepPhaseSucceeded
+		newPhase = v1alpha1.StepPhaseSucceeded
 		now := metav1.Now()
 		stepStatus.CompletionTime = &now
 		logger.Info("Step succeeded")
-		c.metricsRecorder.RecordStepPhase(jobFlow.Name, v1alpha1.StepPhaseSucceeded)
 	} else if job.Status.Failed > 0 {
-		stepStatus.Phase = v1alpha1.StepPhaseFailed
+		newPhase = v1alpha1.StepPhaseFailed
 		now := metav1.Now()
 		stepStatus.CompletionTime = &now
 		logger.Warning("Step failed")
-		c.metricsRecorder.RecordStepPhase(jobFlow.Name, v1alpha1.StepPhaseFailed)
 	} else {
-		stepStatus.Phase = v1alpha1.StepPhaseRunning
+		newPhase = v1alpha1.StepPhaseRunning
 		logger.V(4).Info("Step still running")
+	}
+	
+	stepStatus.Phase = newPhase
+	if oldPhase != newPhase {
+		c.metricsRecorder.RecordStepPhaseTransition(jobFlow.Name, stepName, oldPhase, newPhase)
 	}
 
 	return c.updateJobFlowStatus(ctx, jobFlow, nil)
@@ -839,6 +859,8 @@ func (c *JobFlowController) updateJobFlowStatus(ctx context.Context, jobFlow *v1
 		}
 	}
 
+	// P0.8: Track phase transitions properly
+	oldPhase := jobFlow.Status.Phase
 	if allComplete {
 		if allSucceeded {
 			jobFlow.Status.Phase = v1alpha1.JobFlowPhaseSucceeded
@@ -849,12 +871,21 @@ func (c *JobFlowController) updateJobFlowStatus(ctx context.Context, jobFlow *v1
 		}
 		now := metav1.Now()
 		jobFlow.Status.CompletionTime = &now
-		c.metricsRecorder.RecordJobFlowPhase(jobFlow.Status.Phase, jobFlow.Namespace)
+		if oldPhase != jobFlow.Status.Phase {
+			c.metricsRecorder.RecordJobFlowPhaseTransition(jobFlow.Name, jobFlow.Namespace, oldPhase, jobFlow.Status.Phase)
+		}
 	} else {
 		if jobFlow.Status.Phase == v1alpha1.JobFlowPhasePending {
-			jobFlow.Status.Phase = v1alpha1.JobFlowPhaseRunning
+			newPhase := v1alpha1.JobFlowPhaseRunning
+			if oldPhase != newPhase {
+				c.metricsRecorder.RecordJobFlowPhaseTransition(jobFlow.Name, jobFlow.Namespace, oldPhase, newPhase)
+			}
+			jobFlow.Status.Phase = newPhase
 		}
-		c.metricsRecorder.RecordJobFlowPhase(jobFlow.Status.Phase, jobFlow.Namespace)
+		// Only record if phase changed
+		if oldPhase != jobFlow.Status.Phase {
+			c.metricsRecorder.RecordJobFlowPhaseTransition(jobFlow.Name, jobFlow.Namespace, oldPhase, jobFlow.Status.Phase)
+		}
 	}
 
 	// Update conditions
