@@ -145,6 +145,10 @@ func TestJobFlowController_createExecutionPlan(t *testing.T) {
 	}
 
 	dagGraph := buildDAGForTest(steps)
+	sortedSteps, err := dagGraph.TopologicalSort()
+	if err != nil {
+		t.Fatalf("TopologicalSort returned error: %v", err)
+	}
 	status := v1alpha1.JobFlowStatus{
 		Steps: []v1alpha1.StepStatus{
 			{Name: "step1", Phase: v1alpha1.StepPhaseSucceeded},
@@ -153,7 +157,7 @@ func TestJobFlowController_createExecutionPlan(t *testing.T) {
 		},
 	}
 
-	plan := controller.createExecutionPlan(dagGraph, status)
+	plan := controller.createExecutionPlan(dagGraph, status, sortedSteps)
 
 	// step2 should be ready (step1 is succeeded)
 	if len(plan.ReadySteps) != 1 {
@@ -185,13 +189,17 @@ func TestJobFlowController_createExecutionPlan_AllComplete(t *testing.T) {
 	}
 
 	dagGraph := buildDAGForTest(steps)
+	sortedSteps, err := dagGraph.TopologicalSort()
+	if err != nil {
+		t.Fatalf("TopologicalSort returned error: %v", err)
+	}
 	status := v1alpha1.JobFlowStatus{
 		Steps: []v1alpha1.StepStatus{
 			{Name: "step1", Phase: v1alpha1.StepPhaseSucceeded},
 		},
 	}
 
-	plan := controller.createExecutionPlan(dagGraph, status)
+	plan := controller.createExecutionPlan(dagGraph, status, sortedSteps)
 
 	// No ready steps (all complete)
 	if len(plan.ReadySteps) != 0 {
