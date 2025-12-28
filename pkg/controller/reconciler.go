@@ -177,6 +177,21 @@ func (r *JobFlowReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 
+	// Check TTL cleanup if JobFlow is finished
+	if jobFlow.Status.Phase == v1alpha1.JobFlowPhaseSucceeded || jobFlow.Status.Phase == v1alpha1.JobFlowPhaseFailed {
+		if shouldDelete, err := r.shouldDeleteJobFlow(jobFlow); err != nil {
+			reconcileLogger.WithError(err).Error("Failed to check TTL")
+			return ctrl.Result{}, err
+		} else if shouldDelete {
+			reconcileLogger.Info("TTL expired, deleting JobFlow")
+			if err := r.Delete(ctx, jobFlow); err != nil {
+				reconcileLogger.WithError(err).Error("Failed to delete JobFlow")
+				return ctrl.Result{}, err
+			}
+			return ctrl.Result{}, nil
+		}
+	}
+
 	return ctrl.Result{}, nil
 }
 
@@ -749,4 +764,35 @@ func (r *JobFlowReconciler) updateConditions(jobFlow *v1alpha1.JobFlow) {
 	if !found {
 		jobFlow.Status.Conditions = append(jobFlow.Status.Conditions, readyCondition)
 	}
+}
+
+// shouldDeleteJobFlow checks if a JobFlow should be deleted based on TTLSecondsAfterFinished.
+func (r *JobFlowReconciler) shouldDeleteJobFlow(jobFlow *v1alpha1.JobFlow) (bool, error) {
+	// Check if JobFlow is finished
+	if jobFlow.Status.Phase != v1alpha1.JobFlowPhaseSucceeded && jobFlow.Status.Phase != v1alpha1.JobFlowPhaseFailed {
+		return false, nil
+	}
+
+	// Check if completion time is set
+	if jobFlow.Status.CompletionTime == nil {
+		return false, nil
+	}
+
+	// Get TTL from execution policy
+	var ttlSeconds int32 = 86400 // Default 24 hours
+	if jobFlow.Spec.ExecutionPolicy != nil && jobFlow.Spec.ExecutionPolicy.TTLSecondsAfterFinished != nil {
+		ttlSeconds = *jobFlow.Spec.ExecutionPolicy.TTLSecondsAfterFinished
+	}
+
+	// If TTL is 0, delete immediately
+	if ttlSeconds == 0 {
+		return true, nil
+	}
+
+	// Calculate expiration time
+	expirationTime := jobFlow.Status.CompletionTime.Add(time.Duration(ttlSeconds) * time.Second)
+	now := time.Now()
+
+	// Check if TTL has expired
+	return now.After(expirationTime), nil
 }
