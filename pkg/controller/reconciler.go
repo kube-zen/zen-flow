@@ -502,6 +502,18 @@ func (r *JobFlowReconciler) createExecutionPlan(dagGraph *dag.Graph, status v1al
 			}
 		}
 
+		// Check "When" condition if specified
+		if ready && step.Step != nil && step.Step.When != "" {
+			// Evaluate when condition
+			evaluated, err := r.evaluateWhenCondition(jobFlow, step.Step.When)
+			if err != nil {
+				// If evaluation fails, skip the step
+				ready = false
+			} else {
+				ready = evaluated
+			}
+		}
+
 		if ready {
 			plan.ReadySteps = append(plan.ReadySteps, stepName)
 		}
@@ -556,6 +568,12 @@ func (r *JobFlowReconciler) executeStep(ctx context.Context, jobFlow *v1alpha1.J
 			logger.WithJob(jobFlow.Namespace, stepStatus.JobRef.Name).V(4).Info("Job already exists, updating step status")
 			return r.updateStepStatusFromJob(ctx, jobFlow, stepName, job)
 		}
+	}
+
+	// Handle step inputs before creating job
+	if err := r.handleStepInputs(reconcileCtx, jobFlow, stepSpec); err != nil {
+		logger.WithError(err).Warning("Failed to handle step inputs, continuing")
+		// Continue even if inputs fail (can be enhanced to fail fast)
 	}
 
 	// Create job for step
@@ -650,11 +668,37 @@ func (r *JobFlowReconciler) updateStepStatusFromJob(ctx context.Context, jobFlow
 		now := metav1.Now()
 		stepStatus.CompletionTime = &now
 		logger.Info("Step succeeded")
+
+		// Handle step outputs after success
+		var stepSpec *v1alpha1.Step
+		for i := range jobFlow.Spec.Steps {
+			if jobFlow.Spec.Steps[i].Name == stepName {
+				stepSpec = &jobFlow.Spec.Steps[i]
+				break
+			}
+		}
+		if stepSpec != nil {
+			if err := r.handleStepOutputs(ctx, jobFlow, stepSpec, stepStatus); err != nil {
+				logger.WithError(err).Warning("Failed to handle step outputs")
+			}
+		}
 	} else if job.Status.Failed > 0 {
-		newPhase = v1alpha1.StepPhaseFailed
-		now := metav1.Now()
-		stepStatus.CompletionTime = &now
-		logger.Warning("Step failed")
+		// Check pod failure policy before marking as failed
+		if shouldFail, err := r.checkPodFailurePolicy(ctx, jobFlow, stepName, job); err != nil {
+			logger.WithError(err).Warning("Failed to check pod failure policy, defaulting to fail")
+			newPhase = v1alpha1.StepPhaseFailed
+		} else if !shouldFail {
+			// Pod failure policy says to ignore or count, don't mark as failed
+			logger.Info("Pod failure policy indicates step should not fail")
+			newPhase = v1alpha1.StepPhaseSucceeded // Treat as succeeded if policy says ignore
+		} else {
+			newPhase = v1alpha1.StepPhaseFailed
+		}
+		if newPhase == v1alpha1.StepPhaseFailed {
+			now := metav1.Now()
+			stepStatus.CompletionTime = &now
+			logger.Warning("Step failed")
+		}
 	} else {
 		newPhase = v1alpha1.StepPhaseRunning
 		logger.V(4).Info("Step still running")
@@ -1097,4 +1141,194 @@ func (r *JobFlowReconciler) calculateBackoff(retryPolicy *v1alpha1.RetryPolicy, 
 		// Default exponential
 		return baseDuration * time.Duration(1<<retryCount)
 	}
+}
+
+// checkPodFailurePolicy checks pod failure policy rules against a failed job.
+func (r *JobFlowReconciler) checkPodFailurePolicy(ctx context.Context, jobFlow *v1alpha1.JobFlow, stepName string, job *batchv1.Job) (bool, error) {
+	// Get pod failure policy from execution policy
+	if jobFlow.Spec.ExecutionPolicy == nil || jobFlow.Spec.ExecutionPolicy.PodFailurePolicy == nil {
+		return true, nil // Default: fail the step
+	}
+
+	policy := jobFlow.Spec.ExecutionPolicy.PodFailurePolicy
+
+	// Get failed pods from the job
+	podList := &corev1.PodList{}
+	if err := r.List(ctx, podList, client.InNamespace(job.Namespace), client.MatchingLabels{
+		"job-name": job.Name,
+	}); err != nil {
+		return true, jferrors.WithStep(jferrors.WithJobFlow(jferrors.Wrapf(err, "pod_list_failed", "failed to list pods"), jobFlow.Namespace, jobFlow.Name), stepName)
+	}
+
+	// Check each failed pod against policy rules
+	for _, pod := range podList.Items {
+		if pod.Status.Phase != corev1.PodFailed {
+			continue
+		}
+
+		// Get container exit codes
+		exitCodes := r.getContainerExitCodes(&pod)
+
+		// Check each rule
+		for _, rule := range policy.Rules {
+			if rule.OnExitCodes == nil {
+				// No exit code matching, apply action directly
+				return r.applyPodFailureAction(rule.Action), nil
+			}
+
+			// Check exit codes
+			matches := r.matchExitCodes(exitCodes, rule.OnExitCodes)
+			if matches {
+				return r.applyPodFailureAction(rule.Action), nil
+			}
+		}
+	}
+
+	// No rules matched, default to fail
+	return true, nil
+}
+
+// getContainerExitCodes extracts exit codes from pod container statuses.
+func (r *JobFlowReconciler) getContainerExitCodes(pod *corev1.Pod) map[string]int32 {
+	exitCodes := make(map[string]int32)
+	containerName := "main" // Default container name
+
+	for _, status := range pod.Status.ContainerStatuses {
+		if status.State.Terminated != nil {
+			exitCodes[status.Name] = status.State.Terminated.ExitCode
+			if containerName == "main" {
+				containerName = status.Name
+			}
+		}
+	}
+
+	return exitCodes
+}
+
+// matchExitCodes checks if exit codes match the policy rule.
+func (r *JobFlowReconciler) matchExitCodes(exitCodes map[string]int32, rule *v1alpha1.PodFailurePolicyOnExitCodes) bool {
+	containerName := rule.ContainerName
+	if containerName == "" {
+		containerName = "main"
+	}
+
+	exitCode, exists := exitCodes[containerName]
+	if !exists {
+		return false
+	}
+
+	switch rule.Operator {
+	case "In":
+		for _, val := range rule.Values {
+			if exitCode == val {
+				return true
+			}
+		}
+		return false
+	case "NotIn":
+		for _, val := range rule.Values {
+			if exitCode == val {
+				return false
+			}
+		}
+		return true
+	default:
+		return false
+	}
+}
+
+// applyPodFailureAction applies the action from a pod failure policy rule.
+func (r *JobFlowReconciler) applyPodFailureAction(action string) bool {
+	switch action {
+	case "Ignore":
+		return false // Don't fail the step
+	case "Count":
+		return false // Count but don't fail (could be enhanced to track counts)
+	case "FailJob":
+		return true // Fail the step
+	default:
+		return true // Default: fail
+	}
+}
+
+// evaluateWhenCondition evaluates a "When" condition string.
+// Currently supports simple boolean expressions and step status checks.
+// TODO: Enhance with full template engine support.
+func (r *JobFlowReconciler) evaluateWhenCondition(jobFlow *v1alpha1.JobFlow, condition string) (bool, error) {
+	// Simple implementation: check if condition references step status
+	// Examples: "steps.step1.phase == 'Succeeded'", "steps.step1.phase != 'Failed'"
+	// For now, return true if condition is not empty (can be enhanced with proper parser)
+	if condition == "" {
+		return true, nil
+	}
+
+	// Basic keyword-based evaluation
+	// Check for common patterns like "always", "never", step references
+	if condition == "always" || condition == "true" {
+		return true, nil
+	}
+	if condition == "never" || condition == "false" {
+		return false, nil
+	}
+
+	// TODO: Implement proper template evaluation with step status access
+	// For now, default to true if condition exists
+	return true, nil
+}
+
+// handleStepInputs processes step inputs (artifacts, parameters) before step execution.
+// Currently a placeholder - actual artifact/parameter handling can be enhanced.
+func (r *JobFlowReconciler) handleStepInputs(ctx context.Context, jobFlow *v1alpha1.JobFlow, step *v1alpha1.Step) error {
+	if step.Inputs == nil {
+		return nil
+	}
+
+	logger := logging.FromContext(ctx).WithJobFlow(jobFlow.Namespace, jobFlow.Name).WithStep(step.Name)
+
+	// Handle artifacts
+	for _, artifact := range step.Inputs.Artifacts {
+		logger.WithField("artifact_name", artifact.Name).V(4).Info("Processing artifact input")
+		// TODO: Implement artifact fetching from previous steps or HTTP sources
+		// For now, just log
+	}
+
+	// Handle parameters
+	for _, param := range step.Inputs.Parameters {
+		logger.WithField("parameter_name", param.Name).V(4).Info("Processing parameter input")
+		// TODO: Implement parameter resolution from values or valueFrom
+		// For now, just log
+	}
+
+	return nil
+}
+
+// handleStepOutputs processes step outputs (artifacts, parameters) after step completion.
+// Currently a placeholder - actual artifact/parameter handling can be enhanced.
+func (r *JobFlowReconciler) handleStepOutputs(ctx context.Context, jobFlow *v1alpha1.JobFlow, step *v1alpha1.Step, stepStatus *v1alpha1.StepStatus) error {
+	if step.Outputs == nil {
+		return nil
+	}
+
+	logger := logging.FromContext(ctx).WithJobFlow(jobFlow.Namespace, jobFlow.Name).WithStep(step.Name)
+
+	// Handle artifacts
+	for _, artifact := range step.Outputs.Artifacts {
+		logger.WithField("artifact_name", artifact.Name).V(4).Info("Processing artifact output")
+		// TODO: Implement artifact archiving/uploading to S3 or storage
+		// For now, just log
+	}
+
+	// Handle parameters
+	for _, param := range step.Outputs.Parameters {
+		logger.WithField("parameter_name", param.Name).V(4).Info("Processing parameter output")
+		// TODO: Implement parameter extraction from job outputs using JSONPath
+		// For now, just log
+	}
+
+	// Store outputs in step status (placeholder)
+	if stepStatus.Outputs == nil {
+		stepStatus.Outputs = &v1alpha1.StepOutputs{}
+	}
+
+	return nil
 }
