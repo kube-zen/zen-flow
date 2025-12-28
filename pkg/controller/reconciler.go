@@ -206,7 +206,7 @@ func (r *JobFlowReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	// Create execution plan
-	executionPlan := r.createExecutionPlan(dagGraph, jobFlow.Status, sortedSteps)
+	executionPlan := r.createExecutionPlan(dagGraph, jobFlow, sortedSteps)
 
 	// Check step timeouts for running steps
 	if err := r.checkStepTimeouts(reconcileCtx, jobFlow); err != nil {
@@ -451,7 +451,7 @@ func (r *JobFlowReconciler) refreshStepStatusFromJob(jobFlow *v1alpha1.JobFlow, 
 }
 
 // createExecutionPlan creates an execution plan based on the DAG and current status.
-func (r *JobFlowReconciler) createExecutionPlan(dagGraph *dag.Graph, status v1alpha1.JobFlowStatus, sortedSteps []string) *ExecutionPlan {
+func (r *JobFlowReconciler) createExecutionPlan(dagGraph *dag.Graph, jobFlow *v1alpha1.JobFlow, sortedSteps []string) *ExecutionPlan {
 	plan := &ExecutionPlan{}
 
 	// P0.3: Find completed steps (Succeeded OR Failed with ContinueOnFailure)
@@ -467,8 +467,8 @@ func (r *JobFlowReconciler) createExecutionPlan(dagGraph *dag.Graph, status v1al
 	}
 
 	// Mark steps as completed based on their phase and ContinueOnFailure setting
-	for i := range status.Steps {
-		stepStatus := &status.Steps[i]
+	for i := range jobFlow.Status.Steps {
+		stepStatus := &jobFlow.Status.Steps[i]
 
 		// Mark as completed if succeeded
 		if stepStatus.Phase == v1alpha1.StepPhaseSucceeded {
@@ -483,7 +483,7 @@ func (r *JobFlowReconciler) createExecutionPlan(dagGraph *dag.Graph, status v1al
 
 	// Find steps that are ready to execute
 	for _, stepName := range sortedSteps {
-		stepStatus := r.getStepStatus(status, stepName)
+		stepStatus := r.getStepStatus(jobFlow.Status, stepName)
 		if stepStatus != nil && stepStatus.Phase != v1alpha1.StepPhasePending {
 			continue // Already started or completed
 		}
@@ -571,7 +571,7 @@ func (r *JobFlowReconciler) executeStep(ctx context.Context, jobFlow *v1alpha1.J
 	}
 
 	// Handle step inputs before creating job
-	if err := r.handleStepInputs(reconcileCtx, jobFlow, stepSpec); err != nil {
+	if err := r.handleStepInputs(ctx, jobFlow, stepSpec); err != nil {
 		logger.WithError(err).Warning("Failed to handle step inputs, continuing")
 		// Continue even if inputs fail (can be enhanced to fail fast)
 	}
