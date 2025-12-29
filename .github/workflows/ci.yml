@@ -82,8 +82,8 @@ jobs:
         run: |
           # Allow document-start for multi-document YAML files (common in Kubernetes manifests)
           # Note: document-start rule is disabled to allow --- separators in multi-doc files
-          yamllint -d '{extends: default, rules: {line-length: {max: 120}, document-start: disable, empty-lines: {max: 0, max-start: 0, max-end: 0}}}' \
-            deploy/ examples/ charts/ || true
+          # Exclude Helm template files (*.tpl, templates/*.yaml) as they contain template syntax
+          find deploy/ examples/ charts/ -name "*.yaml" -not -path "*/templates/*" | xargs yamllint -d '{extends: default, rules: {line-length: {max: 120}, document-start: disable, empty-lines: {max: 0, max-start: 0, max-end: 0}}}' || true
       
       - name: Lint Helm charts
         run: |
