@@ -5,9 +5,9 @@ entries:
       category: Workflow
     apiVersion: v2
     appVersion: 0.0.1-alpha
-    created: "2025-12-29T14:15:31.39280742Z"
+    created: "2025-12-29T14:20:27.14839604Z"
     description: A Helm chart for zen-flow - Kubernetes-native job orchestration controller
-    digest: b1aa5f0e929e5ac44de75506255a655a90414bbe307c1b07a7b4d1136856fffb
+    digest: 0f1484fd9f893adf558af9059084b40a58110ca444f3eb234ef873388fb6fe51
     home: https://github.com/kube-zen/zen-flow
     keywords:
     - kubernetes
@@ -25,4 +25,4 @@ entries:
     urls:
     - https://kube-zen.github.io/zen-flow/charts/zen-flow-0.0.1-alpha.tgz
     version: 0.0.1-alpha
-generated: "2025-12-29T14:15:31.392092081Z"
+generated: "2025-12-29T14:20:27.147618269Z"
