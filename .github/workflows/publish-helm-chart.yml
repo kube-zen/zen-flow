@@ -1,17 +1,3 @@
-# Copyright 2025 Kube-ZEN Contributors
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
 name: Publish Helm Chart
 
 on:
@@ -27,61 +13,64 @@ on:
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
 
 jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Configure Git
         run: |
           git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Set up Helm
         uses: azure/setup-helm@v4
         with:
           version: 'latest'
 
-      - name: Lint Helm chart
+      - name: Lint Helm Chart
         run: helm lint charts/zen-flow
 
-      - name: Package Helm chart
+      - name: Package Helm Chart
         run: |
-          mkdir -p .helm-packages
-          helm package charts/zen-flow -d .helm-packages/
-          ls -la .helm-packages/
+          mkdir -p docs/charts
+          helm package charts/zen-flow -d docs/charts
 
-      - name: Prepare docs directory for Helm repository
+      - name: Generate Helm Repository Index
         run: |
-          mkdir -p docs
-
-      - name: Copy packaged charts and generate index
-        run: |
-          # Copy new chart packages to docs
-          cp .helm-packages/*.tgz docs/ || true
-          # Generate or update index.yaml
-          cd docs
+          cd docs/charts
           if [ -f index.yaml ]; then
-            helm repo index . --url https://kube-zen.github.io/zen-flow --merge index.yaml
+            helm repo index . --url https://kube-zen.github.io/zen-flow/charts --merge index.yaml
           else
-            helm repo index . --url https://kube-zen.github.io/zen-flow
+            helm repo index . --url https://kube-zen.github.io/zen-flow/charts
           fi
-          ls -la
-          cd ..
+          cat index.yaml
 
-      - name: Commit and push to main
+      - name: Commit and Push Chart Updates
         run: |
-          git add docs/*.tgz docs/index.yaml
+          git add docs/charts/
           if git diff --staged --quiet; then
             echo "No changes to commit"
           else
-            git commit -m "chore: Update Helm chart repository [skip ci]"
-            git push origin main
+            git commit -m "chore: publish Helm chart $(date +%Y%m%d-%H%M%S) [skip ci]"
+            git push origin HEAD:main
           fi
 
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

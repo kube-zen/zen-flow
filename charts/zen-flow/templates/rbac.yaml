@@ -5,17 +5,17 @@ metadata:
   labels:
     {{- include "zen-flow.labels" . | nindent 4 }}
 rules:
-  # JobFlow CRD: Read-only access + status updates
+  # JobFlow CRD: Read access + status updates + delete (for TTL cleanup and Replace policy)
   - apiGroups: ["workflow.zen.io"]
     resources: ["jobflows"]
-    verbs: ["get", "list", "watch"]
+    verbs: ["get", "list", "watch", "delete"]
   - apiGroups: ["workflow.zen.io"]
     resources: ["jobflows/status"]
     verbs: ["get", "update", "patch"]
-  # Jobs: Read access + create (controller creates Jobs for steps)
+  # Jobs: Read access + create + delete (controller creates Jobs for steps and deletes them on timeout)
   - apiGroups: ["batch"]
     resources: ["jobs"]
-    verbs: ["get", "list", "watch", "create"]
+    verbs: ["get", "list", "watch", "create", "delete"]
   # Core resources: Read access + create for PVCs/ConfigMaps (from resource templates)
   - apiGroups: [""]
     resources: ["persistentvolumeclaims", "configmaps"]

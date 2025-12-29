@@ -71,12 +71,17 @@ leaderElection:
 
 # Webhook configuration
 webhook:
-  enabled: true
+  # Disabled by default for safe installation without prerequisites
+  # Enable only if you have cert-manager or will provide TLS certificates manually
+  enabled: false
   port: 9443
   certFile: /etc/webhook/certs/tls.crt
   keyFile: /etc/webhook/certs/tls.key
   # Certificate secret name (managed by cert-manager if using webhook.certManager)
   certSecret: zen-flow-webhook-cert
+  # Failure policy: Ignore (safe default) or Fail (requires valid TLS)
+  # Ignore allows resource creation even if webhook is unreachable
+  failurePolicy: Ignore
   # Use cert-manager to manage certificates
   certManager:
     enabled: false

@@ -21,21 +21,31 @@ This guide is for operators who need to install, configure, and maintain the zen
 - kubectl configured
 - Cluster admin permissions (for CRD installation)
 
-### Step 1: Install CRD
+### Installation Method 1: Helm (Recommended)
 
 ```bash
+# Install from local chart
+helm install zen-flow ./charts/zen-flow --namespace zen-flow-system --create-namespace
+
+# Or from repository (when published)
+# helm repo add zen-flow https://charts.kube-zen.io
+# helm repo update
+# helm install zen-flow zen-flow/zen-flow --namespace zen-flow-system --create-namespace
+```
+
+**Note**: Webhooks are disabled by default for safe installation. See [Webhook Setup Guide](WEBHOOK_SETUP.md) to enable.
+
+### Installation Method 2: kubectl (Alternative)
+
+For environments without Helm:
+
+```bash
+# Install CRD
 kubectl apply -f deploy/crds/workflow.zen.io_jobflows.yaml
-```
 
-Verify installation:
-
-```bash
+# Verify CRD installation
 kubectl get crd jobflows.workflow.zen.io
-```
 
-### Step 2: Install Controller
-
-```bash
 # Create namespace
 kubectl apply -f deploy/manifests/namespace.yaml
 
@@ -49,13 +59,7 @@ kubectl apply -f deploy/manifests/deployment.yaml
 kubectl apply -f deploy/manifests/service.yaml
 ```
 
-Or use Helm:
-
-```bash
-helm install zen-flow charts/zen-flow/ --namespace zen-flow-system --create-namespace
-```
-
-**Note**: For testing without webhook certificates, you can use `--insecure-webhook=true` flag in the deployment (see deployment.yaml comments).
+**Note**: kubectl installation requires manual webhook certificate management if enabling webhooks.
 
 ### Step 3: Verify Installation
 

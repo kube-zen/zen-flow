@@ -17,7 +17,7 @@ zen-flow is a Kubernetes-native job orchestration controller that provides decla
 ### Add the Helm Repository
 
 ```bash
-helm repo add zen-flow https://kube-zen.github.io/zen-flow
+helm repo add zen-flow https://kube-zen.github.io/zen-flow/charts
 helm repo update
 ```
 
