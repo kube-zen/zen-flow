@@ -4,7 +4,6 @@
 # Note: For production use, ensure the caBundle is properly configured.
 # If using cert-manager, the caBundle will be injected automatically.
 # Otherwise, you need to manually set the caBundle field with the CA certificate.
-
 ---
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration
@@ -33,7 +32,6 @@ webhooks:
     # caBundle is automatically injected by cert-manager via annotation above
     # failurePolicy: Ignore allows resource creation even if webhook is unreachable (safe for alpha)
     # For production with cert-manager, you can change to failurePolicy: Fail for strict validation
-
 ---
 apiVersion: admissionregistration.k8s.io/v1
 kind: MutatingWebhookConfiguration
