@@ -18,6 +18,7 @@ package controller
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"testing"
 	"time"
@@ -25,6 +26,7 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -1268,6 +1270,86 @@ func TestJobFlowReconciler_updateStepStatusFromJob(t *testing.T) {
 	}
 	if stepStatus.Phase != v1alpha1.StepPhaseSucceeded {
 		t.Errorf("Expected step phase to be Succeeded, got %s", stepStatus.Phase)
+	}
+}
+
+func TestJobFlowReconciler_isRetryable(t *testing.T) {
+	reconciler, _, _ := setupReconcilerTest(t)
+
+	tests := []struct {
+		name     string
+		err      error
+		expected bool
+	}{
+		{
+			name:     "nil error",
+			err:      nil,
+			expected: false,
+		},
+		{
+			name:     "conflict error",
+			err:      k8serrors.NewConflict(schema.GroupResource{Resource: "jobflows"}, "test", fmt.Errorf("conflict")),
+			expected: true,
+		},
+		{
+			name:     "server timeout error",
+			err:      k8serrors.NewServerTimeout(schema.GroupResource{Resource: "jobflows"}, "test", 1),
+			expected: true,
+		},
+		{
+			name:     "connection refused error",
+			err:      fmt.Errorf("connection refused"),
+			expected: true,
+		},
+		{
+			name:     "connection reset error",
+			err:      fmt.Errorf("connection reset by peer"),
+			expected: true,
+		},
+		{
+			name:     "timeout error",
+			err:      fmt.Errorf("context deadline exceeded: timeout"),
+			expected: true,
+		},
+		{
+			name:     "temporary failure error",
+			err:      fmt.Errorf("temporary failure in name resolution"),
+			expected: true,
+		},
+		{
+			name:     "network unreachable error",
+			err:      fmt.Errorf("network is unreachable"),
+			expected: true,
+		},
+		{
+			name:     "no route to host error",
+			err:      fmt.Errorf("no route to host"),
+			expected: true,
+		},
+		{
+			name:     "case insensitive error matching",
+			err:      fmt.Errorf("CONNECTION REFUSED"),
+			expected: true,
+		},
+		{
+			name:     "non-retryable error",
+			err:      fmt.Errorf("validation failed: invalid step"),
+			expected: false,
+		},
+		{
+			name:     "not found error",
+			err:      k8serrors.NewNotFound(schema.GroupResource{Resource: "jobflows"}, "test"),
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := reconciler.isRetryable(tt.err)
+			if result != tt.expected {
+				t.Errorf("isRetryable() = %v, expected %v", result, tt.expected)
+			}
+		})
 	}
 }
 
