@@ -121,4 +121,3 @@ spec:
             description: >
               95th percentile reconciliation duration is high ({{ $value }}s).
               This may indicate controller performance issues.
-

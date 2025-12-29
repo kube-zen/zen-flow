@@ -80,7 +80,7 @@ jobs:
       
       - name: Lint YAML files
         run: |
-          yamllint -d '{extends: default, rules: {line-length: {max: 120}, document-start: {present: false}, empty-lines: {max: 0}}}' \
+          yamllint -d '{extends: default, rules: {line-length: {max: 120}, document-start: {present: false}, empty-lines: {max: 0, max-start: 0, max-end: 0}}}' \
             deploy/ examples/ charts/ || true
       
       - name: Lint Helm charts

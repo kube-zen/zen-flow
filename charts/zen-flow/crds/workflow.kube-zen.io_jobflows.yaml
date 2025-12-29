@@ -139,7 +139,7 @@ spec:
                         type: string
                       status:
                         type: string
-                        enum: [True, False, Unknown]
+                        enum: [true, false, Unknown]
                       lastTransitionTime:
                         type: string
                         format: date-time

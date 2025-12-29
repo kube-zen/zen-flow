@@ -18,4 +18,3 @@ spec:
       protocol: TCP
   selector:
     app: zen-flow-controller
-
