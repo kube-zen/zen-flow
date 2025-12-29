@@ -22,7 +22,7 @@
   - **Concurrency Control**: Allow/Forbid/Replace policies for concurrent executions
   - **Pod Failure Policies**: Handle pod failures based on exit codes
   - **Conditional Execution**: When conditions for conditional step execution
-  - **Artifacts & Parameters**: Support for passing data between steps (structure in place)
+  - **Artifacts & Parameters**: Structure in place for passing data between steps (implementation pending - see [Limitations](#limitations))
 
 ## Quick Start
 
@@ -346,6 +346,26 @@ zen-flow/
 | Artifact Management | ✅ (PVC, S3, HTTP) | ✅ (complex) | ❌ |
 | Observability | Built-in (Prometheus) | Add-ons needed | Basic |
 | Resource Footprint | ~50MB | ~1GB+ | None |
+
+## Limitations
+
+**Version 0.0.1-alpha** has the following limitations:
+
+### Artifacts & Parameters
+- **Status**: Structure in place, implementation pending
+- **Current Behavior**: Artifact and parameter definitions are accepted but not processed
+- **Impact**: Data cannot be passed between steps yet
+- **Workaround**: Use ConfigMaps or PVCs directly in Job templates
+
+### When Conditions
+- **Status**: Basic keyword support only
+- **Supported**: `always`, `never`, `true`, `false`
+- **Not Supported**: Step status evaluation (e.g., `steps.step1.phase == 'Succeeded'`)
+- **Impact**: Complex conditional execution is limited
+- **Workaround**: Use dependencies to control execution flow
+
+### Future Enhancements
+See [ROADMAP.md](ROADMAP.md) for planned enhancements.
 
 ## Roadmap
 
