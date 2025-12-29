@@ -75,7 +75,7 @@ func TestJobFlowReconciler_ManualApprovalStep(t *testing.T) {
 	// First reconcile should mark step as PendingApproval
 	_, err := reconciler.Reconcile(context.Background(), req)
 	// Status update failures are expected with fake client
-	if err != nil && err.Error() != "jobflows.workflow.zen.io \"approval-test\" not found" {
+	if err != nil && err.Error() != "jobflows.workflow.kube-zen.io \"approval-test\" not found" {
 		t.Logf("Reconcile error (may be expected): %v", err)
 	}
 
@@ -142,7 +142,7 @@ func TestJobFlowReconciler_ManualApprovalApproved(t *testing.T) {
 	// Reconcile should approve the step
 	_, err := reconciler.Reconcile(context.Background(), req)
 	// Status update failures are expected with fake client
-	if err != nil && err.Error() != "jobflows.workflow.zen.io \"approval-approved-test\" not found" {
+	if err != nil && err.Error() != "jobflows.workflow.kube-zen.io \"approval-approved-test\" not found" {
 		t.Logf("Reconcile error (may be expected): %v", err)
 	}
 
@@ -228,7 +228,7 @@ func TestJobFlowReconciler_ManualApprovalFlowPaused(t *testing.T) {
 	// Reconcile should pause the flow
 	_, err := reconciler.Reconcile(context.Background(), req)
 	// Status update failures are expected with fake client
-	if err != nil && err.Error() != "jobflows.workflow.zen.io \"paused-flow-test\" not found" {
+	if err != nil && err.Error() != "jobflows.workflow.kube-zen.io \"paused-flow-test\" not found" {
 		t.Logf("Reconcile error (may be expected): %v", err)
 	}
 

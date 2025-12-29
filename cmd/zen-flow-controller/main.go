@@ -62,7 +62,7 @@ var (
 	leaderElectionNS        = flag.String("leader-election-namespace", "", "Namespace for leader election lease (defaults to POD_NAMESPACE)")
 	enableWebhook           = flag.Bool("enable-webhook", true, "Enable validating webhook server")
 	insecureWebhook         = flag.Bool("insecure-webhook", false, "Allow webhook to start without TLS (testing only, not recommended for production)")
-	maxConcurrentReconciles = flag.Int("max-concurrent-reconciles", controller.DefaultMaxConcurrentReconciles, "Maximum number of concurrent reconciles")
+	maxConcurrentReconciles = flag.Int("max-concurrent-reconciles", 10, "Maximum number of concurrent reconciles")
 )
 
 //nolint:gocyclo // main function complexity is acceptable for initialization logic

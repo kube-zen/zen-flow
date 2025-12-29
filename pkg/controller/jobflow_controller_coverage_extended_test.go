@@ -460,7 +460,7 @@ func TestJobFlowController_reconcileJobFlow_Deleted(t *testing.T) {
 	kubeClient := kubefake.NewSimpleClientset()
 
 	jobFlowGVR := schema.GroupVersionResource{
-		Group:    "workflow.zen.io",
+		Group:    "workflow.kube-zen.io",
 		Version:  "v1alpha1",
 		Resource: "jobflows",
 	}
@@ -493,7 +493,7 @@ func TestJobFlowController_reconcileJobFlow_InvalidKey(t *testing.T) {
 
 	// Create a minimal informer to avoid nil pointer panic
 	jobFlowGVR := schema.GroupVersionResource{
-		Group:    "workflow.zen.io",
+		Group:    "workflow.kube-zen.io",
 		Version:  "v1alpha1",
 		Resource: "jobflows",
 	}
@@ -555,7 +555,7 @@ func TestJobFlowController_reconcileJobFlow_ValidationFailed(t *testing.T) {
 	unstructuredJobFlow.SetGroupVersionKind(v1alpha1.SchemeGroupVersion.WithKind("JobFlow"))
 
 	jobFlowGVR := schema.GroupVersionResource{
-		Group:    "workflow.zen.io",
+		Group:    "workflow.kube-zen.io",
 		Version:  "v1alpha1",
 		Resource: "jobflows",
 	}

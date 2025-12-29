@@ -12,7 +12,6 @@
 These files in `deploy/webhook/` create a separate webhook service (`zen-flow-webhook`) and are provided for:
 - Custom deployments requiring separate webhook service
 - Testing alternative webhook configurations
-- Legacy compatibility
 
 For standard installations, use:
 - Helm chart (recommended), OR

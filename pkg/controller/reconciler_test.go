@@ -260,7 +260,7 @@ func TestJobFlowReconciler_Reconcile_InvalidJobFlow(t *testing.T) {
 	// This is expected behavior - the error is logged but reconciliation continues
 	_, err := reconciler.Reconcile(context.Background(), req)
 	// Status update will fail, but that's OK for this test
-	if err != nil && err.Error() != "jobflows.workflow.zen.io \"invalid-flow\" not found" {
+	if err != nil && err.Error() != "jobflows.workflow.kube-zen.io \"invalid-flow\" not found" {
 		t.Fatalf("Unexpected error: %v", err)
 	}
 }
@@ -319,7 +319,7 @@ func TestJobFlowReconciler_Reconcile_Initialize(t *testing.T) {
 	// Reconcile - status update may fail with fake client, but initialization logic should run
 	_, err := reconciler.Reconcile(context.Background(), req)
 	// Status update failures are expected with fake client, so we ignore them
-	if err != nil && err.Error() != "jobflows.workflow.zen.io \"test-flow\" not found" {
+	if err != nil && err.Error() != "jobflows.workflow.kube-zen.io \"test-flow\" not found" {
 		t.Logf("Reconcile error (may be expected): %v", err)
 	}
 
@@ -397,7 +397,7 @@ func TestJobFlowReconciler_Reconcile_SimpleFlow(t *testing.T) {
 	// Reconcile - status update may fail with fake client, but job creation should work
 	_, err := reconciler.Reconcile(context.Background(), req)
 	// Status update failures are expected with fake client
-	if err != nil && err.Error() != "jobflows.workflow.zen.io \"simple-flow\" not found" {
+	if err != nil && err.Error() != "jobflows.workflow.kube-zen.io \"simple-flow\" not found" {
 		t.Logf("Reconcile error (may be expected): %v", err)
 	}
 
@@ -805,7 +805,7 @@ func TestJobFlowReconciler_checkStepTimeouts(t *testing.T) {
 	// Reconcile - status update may fail with fake client, but timeout logic should run
 	_, err := reconciler.Reconcile(context.Background(), req)
 	// Status update failures are expected with fake client
-	if err != nil && err.Error() != "jobflows.workflow.zen.io \"timeout-test\" not found" {
+	if err != nil && err.Error() != "jobflows.workflow.kube-zen.io \"timeout-test\" not found" {
 		t.Logf("Reconcile error (may be expected): %v", err)
 	}
 
@@ -890,7 +890,7 @@ func TestJobFlowReconciler_handleStepRetry(t *testing.T) {
 	// First reconcile should handle retry
 	_, err := reconciler.Reconcile(context.Background(), req)
 	// Status update failures are expected with fake client
-	if err != nil && err.Error() != "jobflows.workflow.zen.io \"retry-test\" not found" {
+	if err != nil && err.Error() != "jobflows.workflow.kube-zen.io \"retry-test\" not found" {
 		t.Logf("Reconcile error (may be expected): %v", err)
 	}
 
@@ -1257,7 +1257,7 @@ func TestJobFlowReconciler_updateStepStatusFromJob(t *testing.T) {
 	// Test updateStepStatusFromJob
 	err := reconciler.updateStepStatusFromJob(ctx, jobFlow, "step1", job)
 	// Status update may fail with fake client, but the function logic should run
-	if err != nil && err.Error() != "jobflows.workflow.zen.io \"status-test\" not found" {
+	if err != nil && err.Error() != "jobflows.workflow.kube-zen.io \"status-test\" not found" {
 		t.Logf("updateStepStatusFromJob error (may be expected): %v", err)
 	}
 

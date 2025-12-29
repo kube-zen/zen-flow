@@ -1,3 +1,6 @@
+//go:build legacy
+// +build legacy
+
 /*
 Copyright 2025 Kube-ZEN Contributors
 
@@ -30,7 +33,7 @@ import (
 
 // JobFlowGVR is the GroupVersionResource for JobFlow CRDs.
 var JobFlowGVR = schema.GroupVersionResource{
-	Group:    "workflow.zen.io",
+	Group:    "workflow.kube-zen.io",
 	Version:  "v1alpha1",
 	Resource: "jobflows",
 }

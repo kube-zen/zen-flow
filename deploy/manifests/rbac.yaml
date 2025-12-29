@@ -14,10 +14,10 @@ metadata:
 rules:
   # JobFlow CRD: Read access + status updates + delete (for TTL cleanup and Replace policy)
   # Justification: Controller watches JobFlows via informer, updates status subresource, and deletes JobFlows for TTL cleanup and concurrency policy Replace
-  - apiGroups: ["workflow.zen.io"]
+  - apiGroups: ["workflow.kube-zen.io"]
     resources: ["jobflows"]
     verbs: ["get", "list", "watch", "delete"]
-  - apiGroups: ["workflow.zen.io"]
+  - apiGroups: ["workflow.kube-zen.io"]
     resources: ["jobflows/status"]
     verbs: ["get", "update", "patch"]
   # Jobs: Read access + create + delete (controller creates Jobs for steps and deletes them on timeout)

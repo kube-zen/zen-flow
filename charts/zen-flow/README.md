@@ -62,7 +62,7 @@ The following table lists the configurable parameters and their default values:
 | `image.pullPolicy` | Image pull policy | `IfNotPresent` |
 | `serviceAccount.create` | Create service account | `true` |
 | `serviceAccount.name` | Service account name | `""` |
-| `webhook.enabled` | Enable webhooks | `true` |
+| `webhook.enabled` | Enable webhooks | `false` |
 | `webhook.certManager.enabled` | Use cert-manager for certificates | `false` |
 | `leaderElection.enabled` | Enable leader election | `true` |
 | `leaderElection.namespace` | Leader election namespace | `""` (uses release namespace) |
@@ -116,7 +116,7 @@ helm uninstall zen-flow --namespace zen-flow-system
 **Note:** CRDs are not removed by default. To remove CRDs:
 
 ```bash
-kubectl delete crd jobflows.workflow.zen.io
+kubectl delete crd jobflows.workflow.kube-zen.io
 ```
 
 ## Examples
@@ -200,7 +200,7 @@ kubectl logs -n zen-flow-system deployment/zen-flow-controller
 Ensure CRDs are installed:
 
 ```bash
-kubectl get crd jobflows.workflow.zen.io
+kubectl get crd jobflows.workflow.kube-zen.io
 ```
 
 If missing, install manually:

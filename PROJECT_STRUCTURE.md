@@ -35,7 +35,7 @@ zen-flow/
 │       └── leader_election.go       # Leader election for HA
 ├── deploy/
 │   ├── crds/                        # CRD definitions
-│   │   └── workflow.zen.io_jobflows.yaml
+│   │   └── workflow.kube-zen.io_jobflows.yaml
 │   └── manifests/                   # Deployment manifests
 │       ├── namespace.yaml           # Namespace
 │       ├── rbac.yaml                # RBAC (ServiceAccount, ClusterRole, ClusterRoleBinding)

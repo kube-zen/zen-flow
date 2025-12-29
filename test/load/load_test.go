@@ -116,7 +116,7 @@ func createJobFlowTemplate(name, namespace string, stepCount int, isDAG bool) *v
 
 	return &v1alpha1.JobFlow{
 		TypeMeta: metav1.TypeMeta{
-			APIVersion: "workflow.zen.io/v1alpha1",
+			APIVersion: "workflow.kube-zen.io/v1alpha1",
 			Kind:       "JobFlow",
 		},
 		ObjectMeta: metav1.ObjectMeta{
@@ -173,7 +173,7 @@ func TestConcurrentJobFlowCreation(t *testing.T) {
 
 			creationStart := time.Now()
 			_, err := dynamicClient.Resource(schema.GroupVersionResource{
-				Group:    "workflow.zen.io",
+				Group:    "workflow.kube-zen.io",
 				Version:  "v1alpha1",
 				Resource: "jobflows",
 			}).Namespace(config.Namespace).
@@ -233,7 +233,7 @@ func TestLargeDAGExecution(t *testing.T) {
 		jobFlow := createJobFlowTemplate(name, config.Namespace, config.LargeDAGSteps, true)
 
 		_, err := dynamicClient.Resource(schema.GroupVersionResource{
-			Group:    "workflow.zen.io",
+			Group:    "workflow.kube-zen.io",
 			Version:  "v1alpha1",
 			Resource: "jobflows",
 		}).Namespace(config.Namespace).
@@ -280,7 +280,7 @@ func TestManyStepsPerFlow(t *testing.T) {
 		jobFlow := createJobFlowTemplate(name, config.Namespace, config.StepsPerFlow, false)
 
 		_, err := dynamicClient.Resource(schema.GroupVersionResource{
-			Group:    "workflow.zen.io",
+			Group:    "workflow.kube-zen.io",
 			Version:  "v1alpha1",
 			Resource: "jobflows",
 		}).Namespace(config.Namespace).
@@ -344,7 +344,7 @@ func TestSustainedLoad(t *testing.T) {
 				jobFlow := createJobFlowTemplate(name, config.Namespace, config.StepsPerFlow, false)
 
 				_, err := dynamicClient.Resource(schema.GroupVersionResource{
-					Group:    "workflow.zen.io",
+					Group:    "workflow.kube-zen.io",
 					Version:  "v1alpha1",
 					Resource: "jobflows",
 				}).Namespace(config.Namespace).
@@ -377,7 +377,7 @@ func toUnstructured(jobFlow *v1alpha1.JobFlow) *unstructured.Unstructured {
 	// Convert JobFlow to unstructured for dynamic client
 	// In real implementation, use proper conversion utilities
 	u := &unstructured.Unstructured{}
-	u.SetAPIVersion("workflow.zen.io/v1alpha1")
+	u.SetAPIVersion("workflow.kube-zen.io/v1alpha1")
 	u.SetKind("JobFlow")
 	u.SetName(jobFlow.Name)
 	u.SetNamespace(jobFlow.Namespace)
@@ -405,7 +405,7 @@ func BenchmarkJobFlowCreation(b *testing.B) {
 		name := fmt.Sprintf("bench-flow-%d", i)
 		jobFlow := createJobFlowTemplate(name, namespace, 10, false)
 		_, err := dynamicClient.Resource(schema.GroupVersionResource{
-			Group:    "workflow.zen.io",
+			Group:    "workflow.kube-zen.io",
 			Version:  "v1alpha1",
 			Resource: "jobflows",
 		}).Namespace(namespace).

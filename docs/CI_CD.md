@@ -74,7 +74,7 @@ Publishes Helm charts to GitHub Pages.
 - Generates Helm repository index
 - Commits and pushes to `main` branch
 
-**Repository URL:** `https://kube-zen.github.io/zen-flow`
+**Repository URL:** `https://kube-zen.github.io/zen-flow/charts`
 
 ## Local Development
 

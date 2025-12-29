@@ -1,11 +1,10 @@
 # Version Compatibility Matrix
 
-This document provides version compatibility information for zen-flow, including supported Kubernetes versions and CRD version migration guides.
+This document provides version compatibility information for zen-flow, including supported Kubernetes versions.
 
 ## Table of Contents
 
 - [Supported Kubernetes Versions](#supported-kubernetes-versions)
-- [CRD Version Migration Guide](#crd-version-migration-guide)
 
 ---
 
@@ -49,51 +48,13 @@ The following Kubernetes versions are regularly tested:
 
 ---
 
-## CRD Version Migration Guide
-
-### CRD Version History
+## CRD Version History
 
 | Version | Status | Kubernetes Version | Notes |
 |---------|--------|-------------------|-------|
-| v1alpha1 | ✅ Current | 1.24+ | Initial release, may have breaking changes |
+| v1alpha1 | ✅ Current | 1.24+ | Current release |
 | v1beta1 | 🔜 Planned | TBD | API stabilized, no breaking changes |
 | v1 | 🔜 Planned | TBD | Stable API, long-term support |
-
-### Migration Path: v1alpha1 → v1beta1
-
-**When**: After API stabilization and community feedback
-
-**Breaking Changes**: None expected
-
-**Migration Steps**:
-
-1. **Backup Current JobFlows**:
-   ```bash
-   kubectl get jobflows --all-namespaces -o yaml > jobflows-backup.yaml
-   ```
-
-2. **Update CRD**:
-   ```bash
-   kubectl apply -f deploy/crds/workflow.zen.io_jobflows-v1beta1.yaml
-   ```
-
-3. **Verify JobFlows**:
-   ```bash
-   kubectl get jobflows --all-namespaces
-   ```
-
-4. **Update JobFlow Definitions** (if needed):
-   ```bash
-   # Update apiVersion in JobFlow YAML files
-   sed -i 's/apiVersion: workflow.zen.io\/v1alpha1/apiVersion: workflow.zen.io\/v1beta1/g' jobflows/*.yaml
-   kubectl apply -f jobflows/
-   ```
-
-5. **Test Functionality**:
-   ```bash
-   kubectl apply -f examples/simple-linear-flow.yaml
-   kubectl get jobflow simple-linear-flow
-   ```
 
 ---
 

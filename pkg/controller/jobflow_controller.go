@@ -1,3 +1,6 @@
+//go:build legacy
+// +build legacy
+
 /*
 Copyright 2025 Kube-ZEN Contributors
 
@@ -700,9 +703,9 @@ func (c *JobFlowController) createJobForStep(ctx context.Context, jobFlow *v1alp
 	if job.Labels == nil {
 		job.Labels = make(map[string]string)
 	}
-	job.Labels["workflow.zen.io/step"] = step.Name
-	job.Labels["workflow.zen.io/flow"] = jobFlow.Name
-	job.Labels["workflow.zen.io/managed-by"] = "zen-flow"
+	job.Labels["workflow.kube-zen.io/step"] = step.Name
+	job.Labels["workflow.kube-zen.io/flow"] = jobFlow.Name
+	job.Labels["workflow.kube-zen.io/managed-by"] = "zen-flow"
 
 	// Add step metadata labels/annotations
 	if step.Metadata != nil {

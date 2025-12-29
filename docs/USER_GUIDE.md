@@ -33,6 +33,16 @@ zen-flow makes it easy to orchestrate Kubernetes Jobs in a declarative way with 
 
 ### 1. Install zen-flow
 
+**Recommended: Use Helm**
+
+```bash
+helm repo add zen-flow https://kube-zen.github.io/zen-flow/charts
+helm repo update
+helm install zen-flow zen-flow/zen-flow --namespace zen-flow-system --create-namespace
+```
+
+**Alternative: kubectl Installation**
+
 ```bash
 # Install CRD
 kubectl apply -f deploy/crds/
@@ -44,7 +54,7 @@ kubectl apply -f deploy/manifests/
 ### 2. Create Your First JobFlow
 
 ```yaml
-apiVersion: workflow.zen.io/v1alpha1
+apiVersion: workflow.kube-zen.io/v1alpha1
 kind: JobFlow
 metadata:
   name: simple-pipeline
@@ -93,7 +103,7 @@ kubectl describe jobflow simple-pipeline
 ### Basic Structure
 
 ```yaml
-apiVersion: workflow.zen.io/v1alpha1
+apiVersion: workflow.kube-zen.io/v1alpha1
 kind: JobFlow
 metadata:
   name: <name>
@@ -290,7 +300,7 @@ Control how multiple JobFlow instances with the same name are handled.
 ### Example
 
 ```yaml
-apiVersion: workflow.zen.io/v1alpha1
+apiVersion: workflow.kube-zen.io/v1alpha1
 kind: JobFlow
 metadata:
   name: scheduled-job
@@ -390,18 +400,19 @@ steps:
 2. The step status shows `phase: PendingApproval` with the approval message
 3. An administrator approves the step by annotating the JobFlow:
    ```bash
-   kubectl annotate jobflow <name> workflow.zen.io/approved/<step-name>=true
+   kubectl annotate jobflow <name> workflow.kube-zen.io/approved/<step-name>=true
    ```
 4. The controller detects the annotation and marks the step as succeeded
 5. The JobFlow resumes execution
 
 ### Approval Annotation Format
 
-The annotation key follows the pattern: `workflow.zen.io/approved/<step-name>`
+The annotation key follows the pattern: `workflow.kube-zen.io/approved/<step-name>`
+
 
 ```bash
 # Approve a specific step
-kubectl annotate jobflow migration-prod workflow.zen.io/approved/approve-migration=true
+kubectl annotate jobflow migration-prod workflow.kube-zen.io/approved/approve-migration=true
 
 # Check approval status
 kubectl get jobflow migration-prod -o jsonpath='{.status.steps[?(@.name=="approve-migration")]}'
@@ -410,7 +421,7 @@ kubectl get jobflow migration-prod -o jsonpath='{.status.steps[?(@.name=="approv
 ### Example: Database Migration with Approval
 
 ```yaml
-apiVersion: workflow.zen.io/v1alpha1
+apiVersion: workflow.kube-zen.io/v1alpha1
 kind: JobFlow
 metadata:
   name: migration-with-approval
@@ -504,7 +515,7 @@ spec:
 3. **Admin reviews**: Administrator checks backup logs and verifies backup was successful
 4. **Admin approves**: 
    ```bash
-   kubectl annotate jobflow migration-with-approval workflow.zen.io/approved/approve-migration=true
+   kubectl annotate jobflow migration-with-approval workflow.kube-zen.io/approved/approve-migration=true
    ```
 5. **Flow resumes**: Controller detects approval, marks step as succeeded, and continues to `migrate-schema`
 
@@ -519,7 +530,7 @@ status:
     - name: approve-migration
       phase: PendingApproval
       message: "Please verify backup before proceeding with schema migration"
-      startTime: "2025-12-28T10:00:00Z"
+      startTime: "2015-12-29T10:00:00Z"
 ```
 
 ### Best Practices
@@ -552,7 +563,7 @@ executionPolicy:
 ### Example
 
 ```yaml
-apiVersion: workflow.zen.io/v1alpha1
+apiVersion: workflow.kube-zen.io/v1alpha1
 kind: JobFlow
 metadata:
   name: temporary-job
@@ -594,7 +605,7 @@ resourceTemplates:
 ### Linear Pipeline
 
 ```yaml
-apiVersion: workflow.zen.io/v1alpha1
+apiVersion: workflow.kube-zen.io/v1alpha1
 kind: JobFlow
 metadata:
   name: linear-pipeline

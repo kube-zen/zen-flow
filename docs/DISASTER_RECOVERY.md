@@ -141,7 +141,7 @@ kubectl delete deployment zen-flow-controller -n zen-flow-system
 
 ```bash
 # Annotate JobFlow to suspend
-kubectl annotate jobflow <name> workflow.zen.io/suspended=true
+kubectl annotate jobflow <name> workflow.kube-zen.io/suspended=true
 ```
 
 ---
@@ -162,10 +162,10 @@ kubectl apply -f deploy/manifests/deployment.yaml --previous
 
 ```bash
 # Backup current CRD
-kubectl get crd jobflows.workflow.zen.io -o yaml > crd-backup.yaml
+kubectl get crd jobflows.workflow.kube-zen.io -o yaml > crd-backup.yaml
 
 # Restore previous CRD
-kubectl apply -f deploy/crds/workflow.zen.io_jobflows.yaml --previous
+kubectl apply -f deploy/crds/workflow.kube-zen.io_jobflows.yaml --previous
 ```
 
 ---

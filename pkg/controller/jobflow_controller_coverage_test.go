@@ -200,8 +200,8 @@ func TestJobFlowController_createJobForStep_WithMetadata(t *testing.T) {
 	}
 
 	// Verify labels
-	if job.Labels["workflow.zen.io/step"] != "step1" {
-		t.Errorf("Expected workflow.zen.io/step label, got %v", job.Labels)
+	if job.Labels["workflow.kube-zen.io/step"] != "step1" {
+		t.Errorf("Expected workflow.kube-zen.io/step label, got %v", job.Labels)
 	}
 	if job.Labels["custom-label"] != "custom-value" {
 		t.Errorf("Expected custom-label, got %v", job.Labels)

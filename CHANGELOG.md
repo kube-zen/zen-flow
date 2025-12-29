@@ -48,11 +48,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated documentation to include CI/CD information
 - Updated roadmap to reflect Phase 3 completion
 
-## [0.0.1-alpha] - 2025-01-15
+## [0.0.1-alpha] - 2015-12-29
 
 ### Added
 - Initial release of zen-flow
-- JobFlow CRD (workflow.zen.io/v1alpha1)
+- JobFlow CRD (workflow.kube-zen.io/v1alpha1)
 - Basic sequential job execution
 - DAG support with topological sorting
 - Kubernetes Job creation and management

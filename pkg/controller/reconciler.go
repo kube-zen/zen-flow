@@ -40,6 +40,11 @@ import (
 	"github.com/kube-zen/zen-flow/pkg/logging"
 )
 
+// ExecutionPlan represents an execution plan for a JobFlow.
+type ExecutionPlan struct {
+	ReadySteps []string
+}
+
 // JobFlowReconciler reconciles a JobFlow object
 type JobFlowReconciler struct {
 	client.Client
@@ -59,8 +64,8 @@ func NewJobFlowReconciler(mgr ctrl.Manager, metricsRecorder *metrics.Recorder, e
 }
 
 // Reconcile is part of the main kubernetes reconciliation loop
-// +kubebuilder:rbac:groups=workflow.zen.io,resources=jobflows,verbs=get;list;watch;delete
-// +kubebuilder:rbac:groups=workflow.zen.io,resources=jobflows/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=workflow.kube-zen.io,resources=jobflows,verbs=get;list;watch;delete
+// +kubebuilder:rbac:groups=workflow.kube-zen.io,resources=jobflows/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;delete
 // +kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch;create
 // +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create
@@ -412,6 +417,11 @@ func (r *JobFlowReconciler) refreshStepStatuses(ctx context.Context, jobFlow *v1
 				stepStatus.Phase = v1alpha1.StepPhaseFailed
 				now := metav1.Now()
 				stepStatus.CompletionTime = &now
+				// Record step duration if start time is available
+				if stepStatus.StartTime != nil {
+					duration := now.Sub(stepStatus.StartTime.Time).Seconds()
+					r.MetricsRecorder.RecordStepDuration(jobFlow.Name, stepStatus.Name, "failure", duration)
+				}
 				stepStatus.Message = fmt.Sprintf("Job %s not found", stepStatus.JobRef.Name)
 				continue
 			}
@@ -633,9 +643,9 @@ func (r *JobFlowReconciler) createJobForStep(ctx context.Context, jobFlow *v1alp
 	if job.Labels == nil {
 		job.Labels = make(map[string]string)
 	}
-	job.Labels["workflow.zen.io/step"] = step.Name
-	job.Labels["workflow.zen.io/flow"] = jobFlow.Name
-	job.Labels["workflow.zen.io/managed-by"] = "zen-flow"
+	job.Labels["workflow.kube-zen.io/step"] = step.Name
+	job.Labels["workflow.kube-zen.io/flow"] = jobFlow.Name
+	job.Labels["workflow.kube-zen.io/managed-by"] = "zen-flow"
 
 	// Add step metadata labels/annotations
 	if step.Metadata != nil {
@@ -678,6 +688,11 @@ func (r *JobFlowReconciler) updateStepStatusFromJob(ctx context.Context, jobFlow
 		newPhase = v1alpha1.StepPhaseSucceeded
 		now := metav1.Now()
 		stepStatus.CompletionTime = &now
+		// Record step duration
+		if stepStatus.StartTime != nil {
+			duration := now.Sub(stepStatus.StartTime.Time).Seconds()
+			r.MetricsRecorder.RecordStepDuration(jobFlow.Name, stepName, "success", duration)
+		}
 		logger.Info("Step succeeded")
 
 		// Handle step outputs after success
@@ -702,12 +717,24 @@ func (r *JobFlowReconciler) updateStepStatusFromJob(ctx context.Context, jobFlow
 			// Pod failure policy says to ignore or count, don't mark as failed
 			logger.Info("Pod failure policy indicates step should not fail")
 			newPhase = v1alpha1.StepPhaseSucceeded // Treat as succeeded if policy says ignore
+			now := metav1.Now()
+			stepStatus.CompletionTime = &now
+			// Record step duration
+			if stepStatus.StartTime != nil {
+				duration := now.Sub(stepStatus.StartTime.Time).Seconds()
+				r.MetricsRecorder.RecordStepDuration(jobFlow.Name, stepName, "success", duration)
+			}
 		} else {
 			newPhase = v1alpha1.StepPhaseFailed
 		}
 		if newPhase == v1alpha1.StepPhaseFailed {
 			now := metav1.Now()
 			stepStatus.CompletionTime = &now
+			// Record step duration
+			if stepStatus.StartTime != nil {
+				duration := now.Sub(stepStatus.StartTime.Time).Seconds()
+				r.MetricsRecorder.RecordStepDuration(jobFlow.Name, stepName, "failure", duration)
+			}
 			logger.Warning("Step failed")
 		}
 	} else {
@@ -1027,6 +1054,13 @@ func (r *JobFlowReconciler) checkStepTimeouts(ctx context.Context, jobFlow *v1al
 			logger.WithStep(stepStatus.Name).Warning("Step timeout exceeded")
 			// Mark step as failed due to timeout
 			stepStatus.Phase = v1alpha1.StepPhaseFailed
+			nowTime := metav1.Now()
+			stepStatus.CompletionTime = &nowTime
+			// Record step duration
+			if stepStatus.StartTime != nil {
+				duration := nowTime.Sub(stepStatus.StartTime.Time).Seconds()
+				r.MetricsRecorder.RecordStepDuration(jobFlow.Name, stepStatus.Name, "timeout", duration)
+			}
 			now := metav1.Now()
 			stepStatus.CompletionTime = &now
 			stepStatus.Message = fmt.Sprintf("Step exceeded timeout of %d seconds", timeoutSeconds)

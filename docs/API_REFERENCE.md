@@ -8,7 +8,7 @@ Complete API reference for the JobFlow CRD.
 
 ### API Version
 
-- **Group**: `workflow.zen.io`
+- **Group**: `workflow.kube-zen.io`
 - **Version**: `v1alpha1`
 - **Kind**: `JobFlow`
 - **Plural**: `jobflows`
@@ -17,7 +17,7 @@ Complete API reference for the JobFlow CRD.
 ### Schema
 
 ```yaml
-apiVersion: workflow.zen.io/v1alpha1
+apiVersion: workflow.kube-zen.io/v1alpha1
 kind: JobFlow
 metadata:
   name: string
@@ -284,7 +284,7 @@ Progress information for the JobFlow.
 ## Complete Example
 
 ```yaml
-apiVersion: workflow.zen.io/v1alpha1
+apiVersion: workflow.kube-zen.io/v1alpha1
 kind: JobFlow
 metadata:
   name: data-pipeline

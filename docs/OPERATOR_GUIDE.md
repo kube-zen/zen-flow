@@ -27,10 +27,10 @@ This guide is for operators who need to install, configure, and maintain the zen
 # Install from local chart
 helm install zen-flow ./charts/zen-flow --namespace zen-flow-system --create-namespace
 
-# Or from repository (when published)
-# helm repo add zen-flow https://charts.kube-zen.io
-# helm repo update
-# helm install zen-flow zen-flow/zen-flow --namespace zen-flow-system --create-namespace
+# Or from repository
+helm repo add zen-flow https://kube-zen.github.io/zen-flow/charts
+helm repo update
+helm install zen-flow zen-flow/zen-flow --namespace zen-flow-system --create-namespace
 ```
 
 **Note**: Webhooks are disabled by default for safe installation. See [Webhook Setup Guide](WEBHOOK_SETUP.md) to enable.
@@ -41,10 +41,10 @@ For environments without Helm:
 
 ```bash
 # Install CRD
-kubectl apply -f deploy/crds/workflow.zen.io_jobflows.yaml
+kubectl apply -f deploy/crds/workflow.kube-zen.io_jobflows.yaml
 
 # Verify CRD installation
-kubectl get crd jobflows.workflow.zen.io
+kubectl get crd jobflows.workflow.kube-zen.io
 
 # Create namespace
 kubectl apply -f deploy/manifests/namespace.yaml
@@ -68,10 +68,10 @@ kubectl apply -f deploy/manifests/service.yaml
 kubectl get pods -n zen-flow-system
 
 # Check logs
-kubectl logs -n zen-flow-system -l app=zen-flow-controller
+kubectl logs -n zen-flow-system -l app.kubernetes.io/name=zen-flow
 
 # Check metrics endpoint
-kubectl port-forward -n zen-flow-system svc/zen-flow-controller 8080:8080
+kubectl port-forward -n zen-flow-system svc/zen-flow-metrics 8080:8080
 curl http://localhost:8080/metrics
 ```
 
@@ -140,7 +140,7 @@ kubectl apply -f deploy/prometheus/prometheus-rules.yaml
 kubectl get pods -n zen-flow-system
 
 # Check logs
-kubectl logs -n zen-flow-system -l app=zen-flow-controller
+kubectl logs -n zen-flow-system -l app.kubernetes.io/name=zen-flow
 
 # Check events
 kubectl get events -n zen-flow-system
@@ -203,9 +203,9 @@ curl http://localhost:8080/metrics | grep reconciliation
 ### RBAC
 
 The controller requires:
-- Full access to `jobflows.workflow.zen.io` CRD
-- Create/update/delete Jobs
-- Create/update/delete PVCs and ConfigMaps
+- Read and delete access to `jobflows.workflow.kube-zen.io` CRD (status updates via subresource)
+- Create and delete Jobs (for step execution and timeout cleanup)
+- Create PVCs and ConfigMaps (from resource templates)
 - Leader election permissions
 
 See [RBAC.md](RBAC.md) for details.

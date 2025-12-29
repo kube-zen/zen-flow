@@ -10,15 +10,18 @@ This roadmap outlines future enhancements and improvements for zen-flow.
 
 All planned phases (Critical Infrastructure, Validation & Quality, Deployment & Operations, Documentation & Governance) have been successfully completed. The project is production-ready.
 
-For details on completed work, see:
-- [PHASE1_COMPLETE.md](PHASE1_COMPLETE.md) - Critical Infrastructure
-- [PHASE2_PROGRESS.md](PHASE2_PROGRESS.md) - Validation & Quality
-- [IMPLEMENTATION_SUMMARY.md](IMPLEMENTATION_SUMMARY.md) - Overall implementation summary
 
 ## 🚀 Future Enhancements
 
-While all planned phases are complete, potential future enhancements include:
+### Testing & Quality
+- Enhance E2E test coverage with new features (TTL, retries, timeouts, concurrency, pod failure policies, when conditions, manual approval)
+- Add deterministic controller test harness using fake clients
+- Test full lifecycle: create JobFlow → reconcile → Job created → Job succeeds → step status updated → next steps start → flow completes
+- Add tests for edge cases (job deletion, job failure, etc.)
 
+### Feature Enhancements
+- Enhance artifact/parameter handling with actual storage/transfer (currently structure in place)
+- Enhance when condition evaluation with full template engine (currently basic support)
 - Performance optimizations for large-scale deployments
 - Additional artifact management options (S3, GCS, HTTP)
 - Multi-cluster support
