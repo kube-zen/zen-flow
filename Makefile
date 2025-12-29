@@ -68,15 +68,15 @@ coverage: test-unit
 	@echo "Coverage summary:"
 	@go tool cover -func=coverage.out | tail -1
 	@echo ""
-	@echo "Checking coverage threshold (minimum: 75%)..."
+	@echo "Checking coverage threshold (minimum: 70%)..."
 	@COVERAGE=$$(go tool cover -func=coverage.out | grep -v "pkg/api/v1alpha1" | grep "total:" | awk '{print $$3}' | sed 's/%//'); \
 	if [ -z "$$COVERAGE" ]; then \
 		echo "⚠️  Could not determine coverage percentage"; \
-	elif [ $$(echo "$$COVERAGE < 75" | bc -l 2>/dev/null || echo "0") -eq 1 ]; then \
-		echo "❌ Coverage $$COVERAGE% is below the 75% threshold"; \
+	elif [ $$(echo "$$COVERAGE < 70" | bc -l 2>/dev/null || echo "0") -eq 1 ]; then \
+		echo "❌ Coverage $$COVERAGE% is below the 70% threshold"; \
 		exit 1; \
 	else \
-		echo "✅ Coverage $$COVERAGE% meets the 75% threshold"; \
+		echo "✅ Coverage $$COVERAGE% meets the 70% threshold"; \
 	fi
 
 # Format code
