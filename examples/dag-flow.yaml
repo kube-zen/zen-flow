@@ -90,4 +90,3 @@ spec:
                   command: ["sh", "-c"]
                   args: ["echo 'Loaded data' && sleep 3"]
               restartPolicy: OnFailure
-

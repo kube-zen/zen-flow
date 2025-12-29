@@ -40,13 +40,11 @@ spec:
                   persistentVolumeClaim:
                     claimName: backup-pvc
               restartPolicy: OnFailure
-
     - name: approve-migration
       type: Manual
       dependencies:
         - backup-db
       message: "Please verify backup before proceeding with schema migration"
-
     - name: migrate-schema
       type: Job
       dependencies:
