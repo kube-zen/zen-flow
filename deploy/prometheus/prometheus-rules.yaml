@@ -37,18 +37,18 @@ spec:
             description: "zen-flow Controller has been down for more than 5 minutes."
         # Alert on high reconciliation error rate
         - alert: ZenFlowHighReconciliationErrorRate
-          expr: rate(zen_flow_reconciliation_duration_seconds_count{status="error"}[5m]) > 10
+          expr: rate(zen_flow_reconciliation_duration_seconds_count[5m]) > 10
           for: 5m
           labels:
             severity: warning
             component: zen-flow-controller
           annotations:
-            summary: "High zen-flow reconciliation error rate detected"
+            summary: "High zen-flow reconciliation rate detected"
             description: >
-              zen-flow Controller is experiencing {{ $value }} reconciliation errors per second.
+              zen-flow Controller is experiencing {{ $value }} reconciliations per second.
         # Alert on step execution failures
         - alert: ZenFlowStepExecutionFailures
-          expr: rate(zen_flow_step_phase_total{phase="Failed"}[5m]) > 5
+          expr: rate(zen_flow_step_phase_transitions_total{phase="Failed"}[5m]) > 5
           for: 10m
           labels:
             severity: warning
@@ -59,15 +59,39 @@ spec:
               zen-flow Controller is failing to execute steps at a high rate.
         # Alert on JobFlow stuck in Running state
         - alert: ZenFlowJobFlowStuck
-          expr: zen_flow_jobflow_phase_total{phase="Running"} > 0 AND on(flow_name) (time() - zen_flow_jobflow_start_time_seconds) > 3600
-          for: 30m
+          expr: zen_flow_jobflows{phase="Running"} > 0
+          for: 1h
           labels:
             severity: warning
             component: zen-flow-controller
           annotations:
             summary: "JobFlow stuck in Running state"
             description: >
-              JobFlow {{ $labels.flow_name }} has been in Running state for more than 1 hour.
+              JobFlow has been in Running state for more than 1 hour.
+        # Alert on JobFlow stuck in Paused state (waiting for approval too long)
+        - alert: ZenFlowJobFlowStuckWaitingApproval
+          expr: zen_flow_jobflows{phase="Paused"} > 0
+          for: 24h
+          labels:
+            severity: warning
+            component: zen-flow-controller
+          annotations:
+            summary: "JobFlow stuck waiting for manual approval"
+            description: >
+              JobFlow has been in Paused state waiting for manual approval for more than 24 hours.
+              Check for steps with phase PendingApproval and approve them if appropriate.
+        # Alert on steps stuck in PendingApproval
+        - alert: ZenFlowStepStuckPendingApproval
+          expr: zen_flow_steps{phase="PendingApproval"} > 0
+          for: 12h
+          labels:
+            severity: info
+            component: zen-flow-controller
+          annotations:
+            summary: "Step waiting for manual approval"
+            description: >
+              Step has been waiting for manual approval for more than 12 hours.
+              Approve the step using: kubectl annotate jobflow <name> workflow.zen.io/approved/<step-name>=true
         # Alert on slow step execution
         - alert: ZenFlowSlowStepExecution
           expr: >
@@ -83,18 +107,18 @@ spec:
               95th percentile step execution duration is high ({{ $value }}s).
         # Alert on high job creation failure rate
         - alert: ZenFlowHighJobCreationFailureRate
-          expr: rate(zen_flow_step_phase_total{phase="Failed",reason="job_creation_failed"}[5m]) > 2
+          expr: rate(zen_flow_step_phase_transitions_total{phase="Failed"}[5m]) > 2
           for: 5m
           labels:
             severity: warning
             component: zen-flow-controller
           annotations:
-            summary: "High job creation failure rate"
+            summary: "High step failure rate"
             description: >
-              zen-flow Controller is failing to create Jobs at a high rate.
+              zen-flow Controller is experiencing a high rate of step failures.
         # Alert when no JobFlows are active (may indicate issues)
         - alert: ZenFlowNoActiveJobFlows
-          expr: zen_flow_jobflow_phase_total{phase="Running"} == 0 AND zen_flow_jobflow_phase_total{phase="Pending"} == 0
+          expr: zen_flow_jobflows{phase="Running"} == 0 AND zen_flow_jobflows{phase="Pending"} == 0
           for: 1h
           labels:
             severity: info

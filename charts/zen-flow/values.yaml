@@ -5,7 +5,7 @@
 replicaCount: 1
 
 image:
-  repository: kube-zen/zen-flow-controller
+  repository: kubezen/zen-flow-controller
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
   tag: "0.0.1-alpha"

@@ -52,8 +52,10 @@ kubectl apply -f deploy/manifests/service.yaml
 Or use Helm:
 
 ```bash
-helm install zen-flow charts/zen-flow/
+helm install zen-flow charts/zen-flow/ --namespace zen-flow-system --create-namespace
 ```
+
+**Note**: For testing without webhook certificates, you can use `--insecure-webhook=true` flag in the deployment (see deployment.yaml comments).
 
 ### Step 3: Verify Installation
 
@@ -87,8 +89,11 @@ curl http://localhost:8080/metrics
 --master=""                        # Kubernetes API server address
 --metrics-addr=":8080"             # Metrics server address
 --enable-leader-election=true      # Enable leader election
---webhook-addr=""                  # Webhook server address
---enable-webhook=false             # Enable webhooks
+--webhook-addr=":9443"             # Webhook server address
+--webhook-cert-file=""             # Path to webhook TLS certificate
+--webhook-key-file=""              # Path to webhook TLS private key
+--enable-webhook=true              # Enable webhooks
+--insecure-webhook=false           # Allow webhook without TLS (testing only)
 ```
 
 ---

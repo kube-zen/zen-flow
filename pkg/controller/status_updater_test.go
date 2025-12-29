@@ -43,7 +43,9 @@ func TestNewStatusUpdater(t *testing.T) {
 
 func TestStatusUpdater_UpdateStatus(t *testing.T) {
 	scheme := runtime.NewScheme()
-	v1alpha1.AddToScheme(scheme)
+	if err := v1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatalf("Failed to add scheme: %v", err)
+	}
 
 	jobFlow := &v1alpha1.JobFlow{
 		ObjectMeta: metav1.ObjectMeta{

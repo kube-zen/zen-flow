@@ -195,6 +195,12 @@ func (r *JobFlowReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, nil
 	}
 
+	// Check for manual approval steps and handle approvals
+	if err := r.checkManualApprovals(reconcileCtx, jobFlow); err != nil {
+		reconcileLogger.WithError(err).Error("Failed to check manual approvals")
+		return ctrl.Result{}, err
+	}
+
 	// P0.1: Refresh step statuses from Jobs for any step with JobRef (Running/Pending-with-JobRef)
 	if err := r.refreshStepStatuses(reconcileCtx, jobFlow); err != nil {
 		if r.isRetryable(err) {
@@ -430,7 +436,7 @@ func (r *JobFlowReconciler) refreshStepStatusFromJob(jobFlow *v1alpha1.JobFlow, 
 
 	// Update phase based on job conditions
 	oldPhase := stepStatus.Phase
-	newPhase := stepStatus.Phase
+	var newPhase string
 
 	if job.Status.Succeeded > 0 {
 		newPhase = v1alpha1.StepPhaseSucceeded
@@ -484,7 +490,7 @@ func (r *JobFlowReconciler) createExecutionPlan(dagGraph *dag.Graph, jobFlow *v1
 	// Find steps that are ready to execute
 	for _, stepName := range sortedSteps {
 		stepStatus := r.getStepStatus(jobFlow.Status, stepName)
-		if stepStatus != nil && stepStatus.Phase != v1alpha1.StepPhasePending {
+		if stepStatus != nil && stepStatus.Phase != v1alpha1.StepPhasePending && stepStatus.Phase != v1alpha1.StepPhasePendingApproval {
 			continue // Already started or completed
 		}
 
@@ -568,6 +574,11 @@ func (r *JobFlowReconciler) executeStep(ctx context.Context, jobFlow *v1alpha1.J
 			logger.WithJob(jobFlow.Namespace, stepStatus.JobRef.Name).V(4).Info("Job already exists, updating step status")
 			return r.updateStepStatusFromJob(ctx, jobFlow, stepName, job)
 		}
+	}
+
+	// Handle manual approval steps
+	if stepSpec.Type == v1alpha1.StepTypeManual || (stepSpec.Type == "" && len(stepSpec.Template.Raw) == 0) {
+		return r.handleManualApprovalStep(ctx, jobFlow, stepSpec, stepStatus)
 	}
 
 	// Handle step inputs before creating job
@@ -1328,6 +1339,91 @@ func (r *JobFlowReconciler) handleStepOutputs(ctx context.Context, jobFlow *v1al
 	// Store outputs in step status (placeholder)
 	if stepStatus.Outputs == nil {
 		stepStatus.Outputs = &v1alpha1.StepOutputs{}
+	}
+
+	return nil
+}
+
+// checkManualApprovals checks for manual approval steps and handles approvals.
+func (r *JobFlowReconciler) checkManualApprovals(ctx context.Context, jobFlow *v1alpha1.JobFlow) error {
+	logger := logging.FromContext(ctx).WithJobFlow(jobFlow.Namespace, jobFlow.Name)
+
+	// Check if there are any steps waiting for approval
+	hasPendingApproval := false
+	for i := range jobFlow.Status.Steps {
+		stepStatus := &jobFlow.Status.Steps[i]
+		if stepStatus.Phase == v1alpha1.StepPhasePendingApproval {
+			hasPendingApproval = true
+
+			// Check if this step has been approved via annotation
+			approvalKey := fmt.Sprintf("%s/%s", v1alpha1.ApprovalAnnotationKey, stepStatus.Name)
+			if approved, exists := jobFlow.Annotations[approvalKey]; exists && approved == v1alpha1.ApprovalAnnotationValue {
+				// Step has been approved, mark it as succeeded
+				stepStatus.Phase = v1alpha1.StepPhaseSucceeded
+				stepStatus.CompletionTime = &metav1.Time{Time: time.Now()}
+				if stepStatus.StartTime == nil {
+					stepStatus.StartTime = &metav1.Time{Time: time.Now()}
+				}
+				logger.WithStep(stepStatus.Name).Info("Manual approval step approved")
+				r.EventRecorder.Eventf(jobFlow, corev1.EventTypeNormal, "StepApproved", "Step %s has been approved", stepStatus.Name)
+			}
+		}
+	}
+
+	// Update JobFlow phase based on approval status
+	if hasPendingApproval && jobFlow.Status.Phase != v1alpha1.JobFlowPhasePaused {
+		jobFlow.Status.Phase = v1alpha1.JobFlowPhasePaused
+		logger.Info("JobFlow paused waiting for manual approval")
+		r.EventRecorder.Eventf(jobFlow, corev1.EventTypeNormal, "FlowPaused", "JobFlow paused waiting for manual approval")
+	} else if !hasPendingApproval && jobFlow.Status.Phase == v1alpha1.JobFlowPhasePaused {
+		// No more pending approvals, resume the flow
+		jobFlow.Status.Phase = v1alpha1.JobFlowPhaseRunning
+		logger.Info("JobFlow resumed after approval")
+		r.EventRecorder.Eventf(jobFlow, corev1.EventTypeNormal, "FlowResumed", "JobFlow resumed after approval")
+	}
+
+	return nil
+}
+
+// handleManualApprovalStep handles a manual approval step.
+func (r *JobFlowReconciler) handleManualApprovalStep(ctx context.Context, jobFlow *v1alpha1.JobFlow, stepSpec *v1alpha1.Step, stepStatus *v1alpha1.StepStatus) error {
+	logger := logging.FromContext(ctx).WithJobFlow(jobFlow.Namespace, jobFlow.Name).WithStep(stepSpec.Name)
+
+	// If step is already approved, mark it as succeeded
+	approvalKey := fmt.Sprintf("%s/%s", v1alpha1.ApprovalAnnotationKey, stepSpec.Name)
+	if approved, exists := jobFlow.Annotations[approvalKey]; exists && approved == v1alpha1.ApprovalAnnotationValue {
+		if stepStatus.Phase != v1alpha1.StepPhaseSucceeded {
+			stepStatus.Phase = v1alpha1.StepPhaseSucceeded
+			stepStatus.CompletionTime = &metav1.Time{Time: time.Now()}
+			if stepStatus.StartTime == nil {
+				stepStatus.StartTime = &metav1.Time{Time: time.Now()}
+			}
+			logger.Info("Manual approval step approved")
+			r.EventRecorder.Eventf(jobFlow, corev1.EventTypeNormal, "StepApproved", "Step %s has been approved", stepSpec.Name)
+			return r.Status().Update(ctx, jobFlow)
+		}
+		return nil
+	}
+
+	// Step is waiting for approval
+	if stepStatus.Phase != v1alpha1.StepPhasePendingApproval {
+		stepStatus.Phase = v1alpha1.StepPhasePendingApproval
+		stepStatus.StartTime = &metav1.Time{Time: time.Now()}
+		if stepSpec.Message != "" {
+			stepStatus.Message = stepSpec.Message
+		} else {
+			stepStatus.Message = fmt.Sprintf("Waiting for manual approval of step %s", stepSpec.Name)
+		}
+		logger.WithField("message", stepStatus.Message).Info("Manual approval step waiting for approval")
+		r.EventRecorder.Eventf(jobFlow, corev1.EventTypeNormal, "StepPendingApproval", "Step %s is waiting for manual approval: %s", stepSpec.Name, stepStatus.Message)
+
+		// Update JobFlow phase to Paused
+		if jobFlow.Status.Phase != v1alpha1.JobFlowPhasePaused {
+			jobFlow.Status.Phase = v1alpha1.JobFlowPhasePaused
+			r.EventRecorder.Eventf(jobFlow, corev1.EventTypeNormal, "FlowPaused", "JobFlow paused waiting for manual approval of step %s", stepSpec.Name)
+		}
+
+		return r.Status().Update(ctx, jobFlow)
 	}
 
 	return nil

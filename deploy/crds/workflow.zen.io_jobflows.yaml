@@ -75,6 +75,12 @@ spec:
                     properties:
                       name:
                         type: string
+                      type:
+                        type: string
+                        enum: [Job, Manual]
+                        default: Job
+                      message:
+                        type: string
                       metadata:
                         type: object
                         properties:

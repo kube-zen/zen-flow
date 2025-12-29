@@ -8,32 +8,65 @@ The zen-flow controller exposes metrics on the `/metrics` endpoint, defaulting t
 
 ## Available Metrics
 
-### `zen_flow_jobflows_total`
+### `zen_flow_jobflows`
 **Type**: Gauge  
-**Description**: Total number of JobFlows  
+**Description**: Current number of JobFlows by phase and namespace  
 **Labels**:
-- `phase`: JobFlow phase (Pending, Running, Succeeded, Failed, Suspended)
+- `phase`: JobFlow phase (Pending, Running, Succeeded, Failed, Suspended, Paused)
 - `namespace`: Namespace of the JobFlow
 
 **Example**:
 ```
-zen_flow_jobflows_total{phase="Running",namespace="default"} 5
-zen_flow_jobflows_total{phase="Succeeded",namespace="default"} 10
+zen_flow_jobflows{phase="Running",namespace="default"} 5
+zen_flow_jobflows{phase="Succeeded",namespace="default"} 10
+zen_flow_jobflows{phase="Paused",namespace="default"} 2
 ```
 
 ---
 
-### `zen_flow_steps_total`
-**Type**: Gauge  
-**Description**: Total number of steps  
+### `zen_flow_jobflow_phase_transitions_total`
+**Type**: Counter  
+**Description**: Total number of JobFlow phase transitions  
 **Labels**:
-- `flow`: Name of the JobFlow
-- `phase`: Step phase (Pending, Running, Succeeded, Failed, Skipped)
+- `phase`: Target phase of the transition
+- `namespace`: Namespace of the JobFlow
 
 **Example**:
 ```
-zen_flow_steps_total{flow="data-pipeline",phase="Running"} 3
-zen_flow_steps_total{flow="data-pipeline",phase="Succeeded"} 7
+zen_flow_jobflow_phase_transitions_total{phase="Running",namespace="default"} 150
+zen_flow_jobflow_phase_transitions_total{phase="Succeeded",namespace="default"} 100
+```
+
+---
+
+### `zen_flow_steps`
+**Type**: Gauge  
+**Description**: Current number of steps by phase  
+**Labels**:
+- `flow`: Name of the JobFlow
+- `phase`: Step phase (Pending, Running, Succeeded, Failed, Skipped, PendingApproval)
+
+**Example**:
+```
+zen_flow_steps{flow="data-pipeline",phase="Running"} 3
+zen_flow_steps{flow="data-pipeline",phase="Succeeded"} 7
+zen_flow_steps{flow="migration-prod",phase="PendingApproval"} 1
+```
+
+---
+
+### `zen_flow_step_phase_transitions_total`
+**Type**: Counter  
+**Description**: Total number of step phase transitions  
+**Labels**:
+- `flow`: Name of the JobFlow
+- `phase`: Target phase of the transition
+
+**Example**:
+```
+zen_flow_step_phase_transitions_total{flow="data-pipeline",phase="Succeeded"} 500
+zen_flow_step_phase_transitions_total{flow="data-pipeline",phase="Failed"} 10
+zen_flow_step_phase_transitions_total{flow="migration-prod",phase="PendingApproval"} 5
 ```
 
 ---
@@ -73,16 +106,31 @@ zen_flow_reconciliation_duration_seconds_count 1000
 
 ## Prometheus Queries
 
-### JobFlows by Phase
+### JobFlows by Phase (Current State)
 ```promql
-sum by (phase) (zen_flow_jobflows_total)
+sum by (phase) (zen_flow_jobflows)
+```
+
+### JobFlows Waiting for Approval
+```promql
+sum(zen_flow_jobflows{phase="Paused"})
+```
+
+### Steps Waiting for Approval
+```promql
+sum(zen_flow_steps{phase="PendingApproval"})
 ```
 
 ### Step Success Rate
 ```promql
-sum(rate(zen_flow_step_duration_seconds_count{result="success"}[5m])) 
+sum(rate(zen_flow_step_phase_transitions_total{phase="Succeeded"}[5m])) 
 / 
-sum(rate(zen_flow_step_duration_seconds_count[5m]))
+sum(rate(zen_flow_step_phase_transitions_total[5m])) * 100
+```
+
+### Phase Transition Rate
+```promql
+sum(rate(zen_flow_jobflow_phase_transitions_total[5m])) by (phase)
 ```
 
 ### Average Step Duration
@@ -124,11 +172,13 @@ See [Grafana Dashboard README](../deploy/grafana/README.md) for installation ins
 Prometheus alerting rules are available at `deploy/prometheus/prometheus-rules.yaml`:
 
 - **ControllerDown**: Alerts when controller is down
-- **HighReconciliationErrorRate**: Alerts on high error rates
+- **HighReconciliationErrorRate**: Alerts on high reconciliation rates
 - **StepExecutionFailures**: Alerts on step failures
-- **JobFlowStuck**: Alerts on JobFlows stuck in Running
+- **JobFlowStuck**: Alerts on JobFlows stuck in Running (>1h)
+- **JobFlowStuckWaitingApproval**: Alerts on JobFlows stuck in Paused (>24h)
+- **StepStuckPendingApproval**: Alerts on steps waiting for approval (>12h)
 - **SlowStepExecution**: Alerts on slow step execution
-- **HighJobCreationFailureRate**: Alerts on job creation failures
+- **HighJobCreationFailureRate**: Alerts on high step failure rates
 
 ---
 

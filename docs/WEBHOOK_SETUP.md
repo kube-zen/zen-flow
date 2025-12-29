@@ -33,8 +33,7 @@ kubectl apply -f deploy/webhook/certificate.yaml
 kubectl wait --for=condition=Ready certificate/zen-flow-webhook-cert -n zen-flow-system --timeout=60s
 
 # Deploy webhook configurations
-kubectl apply -f deploy/webhook/validating-webhook.yaml
-kubectl apply -f deploy/webhook/mutating-webhook.yaml
+kubectl apply -f deploy/manifests/webhook.yaml
 ```
 
 ### 3. Verify Webhook Installation
@@ -47,8 +46,8 @@ kubectl get certificate -n zen-flow-system
 kubectl get validatingwebhookconfiguration zen-flow-validating-webhook
 kubectl get mutatingwebhookconfiguration zen-flow-mutating-webhook
 
-# Check webhook service
-kubectl get svc zen-flow-webhook -n zen-flow-system
+# Check webhook service (webhook port is on the metrics service)
+kubectl get svc zen-flow-controller-metrics -n zen-flow-system
 ```
 
 ## Configuration
@@ -163,7 +162,7 @@ kubectl get jobflow test-mutation -o yaml | grep -A 5 executionPolicy
 
 4. **Test webhook endpoint**:
    ```bash
-   kubectl port-forward -n zen-flow-system svc/zen-flow-webhook 9443:443
+   kubectl port-forward -n zen-flow-system svc/zen-flow-controller 9443:9443
    curl -k https://localhost:9443/healthz
    ```
 

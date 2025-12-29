@@ -139,6 +139,17 @@ type Step struct {
 	// Name is the unique name of the step within the flow.
 	Name string `json:"name"`
 
+	// Type specifies the type of step.
+	// Valid values are: "Job" (default), "Manual".
+	// When set to "Manual", the step requires manual approval before proceeding.
+	// +kubebuilder:validation:Enum=Job;Manual
+	// +kubebuilder:default=Job
+	Type string `json:"type,omitempty"`
+
+	// Message is a message displayed when the step requires manual approval.
+	// Only used when Type is "Manual".
+	Message string `json:"message,omitempty"`
+
 	// Metadata contains metadata for the step.
 	Metadata *StepMetadata `json:"metadata,omitempty"`
 
@@ -161,7 +172,8 @@ type Step struct {
 	ContinueOnFailure bool `json:"continueOnFailure,omitempty"`
 
 	// Template defines the Kubernetes Job template for this step.
-	Template runtime.RawExtension `json:"template"`
+	// Required when Type is "Job", ignored when Type is "Manual".
+	Template runtime.RawExtension `json:"template,omitempty"`
 
 	// Inputs defines inputs for this step (artifacts, parameters).
 	Inputs *StepInputs `json:"inputs,omitempty"`
@@ -328,8 +340,8 @@ type ParameterValueFrom struct {
 // JobFlowStatus defines the observed state of JobFlow.
 type JobFlowStatus struct {
 	// Phase represents the current phase of the JobFlow.
-	// Valid values are: "Pending", "Running", "Succeeded", "Failed", "Suspended".
-	// +kubebuilder:validation:Enum=Pending;Running;Succeeded;Failed;Suspended
+	// Valid values are: "Pending", "Running", "Succeeded", "Failed", "Suspended", "Paused".
+	// +kubebuilder:validation:Enum=Pending;Running;Succeeded;Failed;Suspended;Paused
 	Phase string `json:"phase,omitempty"`
 
 	// Conditions represent the latest available observations of the JobFlow's state.
@@ -382,7 +394,7 @@ type StepStatus struct {
 	Name string `json:"name"`
 
 	// Phase represents the current phase of the step.
-	// Valid values are: "Pending", "Running", "Succeeded", "Failed", "Skipped".
+	// Valid values are: "Pending", "Running", "Succeeded", "Failed", "Skipped", "PendingApproval".
 	Phase string `json:"phase,omitempty"`
 
 	// StartTime is the time when the step started.
@@ -439,11 +451,12 @@ type InitiatedBy struct {
 
 // Step phase constants
 const (
-	StepPhasePending   = "Pending"
-	StepPhaseRunning   = "Running"
-	StepPhaseSucceeded = "Succeeded"
-	StepPhaseFailed    = "Failed"
-	StepPhaseSkipped   = "Skipped"
+	StepPhasePending       = "Pending"
+	StepPhaseRunning       = "Running"
+	StepPhaseSucceeded     = "Succeeded"
+	StepPhaseFailed        = "Failed"
+	StepPhaseSkipped       = "Skipped"
+	StepPhasePendingApproval = "PendingApproval"
 )
 
 // JobFlow phase constants
@@ -453,10 +466,28 @@ const (
 	JobFlowPhaseSucceeded = "Succeeded"
 	JobFlowPhaseFailed    = "Failed"
 	JobFlowPhaseSuspended = "Suspended"
+	JobFlowPhasePaused    = "Paused"
+)
+
+// Step type constants
+const (
+	StepTypeJob    = "Job"
+	StepTypeManual = "Manual"
+)
+
+// Approval annotation constants
+const (
+	ApprovalAnnotationKey   = "workflow.zen.io/approved"
+	ApprovalAnnotationValue = "true"
 )
 
 // GetJobTemplate extracts the Job template from a Step's Template field.
 func (s *Step) GetJobTemplate() (*batchv1.Job, error) {
+	// Manual approval steps don't have job templates
+	if s.Type == StepTypeManual || (s.Type == "" && len(s.Template.Raw) == 0) {
+		return nil, fmt.Errorf("step type is Manual, no job template available")
+	}
+
 	// Convert RawExtension to unstructured first
 	unstructuredObj := &unstructured.Unstructured{}
 	if err := json.Unmarshal(s.Template.Raw, unstructuredObj); err != nil {

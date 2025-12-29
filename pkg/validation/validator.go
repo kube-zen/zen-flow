@@ -238,6 +238,11 @@ func validateExecutionPolicy(policy *v1alpha1.ExecutionPolicy) error {
 
 // validateStepTemplate validates a step's Job template.
 func validateStepTemplate(step *v1alpha1.Step, index int) error {
+	// Manual approval steps don't require a template
+	if step.Type == v1alpha1.StepTypeManual || (step.Type == "" && len(step.Template.Raw) == 0) {
+		return nil
+	}
+
 	if len(step.Template.Raw) == 0 {
 		return ErrEmptyJobTemplate
 	}
