@@ -46,4 +46,3 @@ func TestRecorder_RecordStepPhaseTransition(t *testing.T) {
 	// Test with empty old phase (initial state)
 	recorder.RecordStepPhaseTransition("flow3", "step1", "", "Running")
 }
-

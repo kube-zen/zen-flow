@@ -23,19 +23,19 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-logr/logr"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	kubefake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
-	"github.com/go-logr/logr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -157,8 +157,10 @@ func (f *fakeManager) GetHTTPClient() *http.Client {
 type fakeEventRecorder struct{}
 
 func (f *fakeEventRecorder) Event(object runtime.Object, eventtype, reason, message string) {}
-func (f *fakeEventRecorder) Eventf(object runtime.Object, eventtype, reason, messageFmt string, args ...interface{}) {}
-func (f *fakeEventRecorder) AnnotatedEventf(object runtime.Object, annotations map[string]string, eventtype, reason, messageFmt string, args ...interface{}) {}
+func (f *fakeEventRecorder) Eventf(object runtime.Object, eventtype, reason, messageFmt string, args ...interface{}) {
+}
+func (f *fakeEventRecorder) AnnotatedEventf(object runtime.Object, annotations map[string]string, eventtype, reason, messageFmt string, args ...interface{}) {
+}
 
 type fakeRESTMapper struct{}
 
@@ -375,7 +377,7 @@ func TestJobFlowReconciler_Reconcile_SimpleFlow(t *testing.T) {
 			},
 		},
 		Status: v1alpha1.JobFlowStatus{
-			Phase: v1alpha1.JobFlowPhasePending,
+			Phase:     v1alpha1.JobFlowPhasePending,
 			StartTime: &metav1.Time{Time: time.Now()},
 			Progress: &v1alpha1.ProgressStatus{
 				TotalSteps: 1,
@@ -912,10 +914,10 @@ func TestJobFlowReconciler_calculateBackoff(t *testing.T) {
 	reconciler, _, _ := setupReconcilerTest(t)
 
 	tests := []struct {
-		name       string
+		name        string
 		retryPolicy *v1alpha1.RetryPolicy
-		retryCount int32
-		expected   time.Duration
+		retryCount  int32
+		expected    time.Duration
 	}{
 		{
 			name: "exponential backoff default",
@@ -1591,8 +1593,8 @@ func TestJobFlowReconciler_createExecutionPlan_WhenCondition(t *testing.T) {
 			Steps: []v1alpha1.Step{
 				{Name: "step1"},
 				{
-					Name:  "step2",
-					When:  "never", // Should not execute
+					Name:         "step2",
+					When:         "never", // Should not execute
 					Dependencies: []string{"step1"},
 				},
 			},
@@ -1797,5 +1799,3 @@ func TestJobFlowReconciler_applyPodFailureAction(t *testing.T) {
 		})
 	}
 }
-
-

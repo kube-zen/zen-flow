@@ -121,4 +121,3 @@ func main() {
 
 	fmt.Println("All examples are valid! ✅")
 }
-

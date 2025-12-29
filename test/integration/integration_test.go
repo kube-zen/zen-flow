@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/go-logr/logr"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -32,7 +33,6 @@ import (
 	kubefake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
-	"github.com/go-logr/logr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -156,8 +156,10 @@ func (f *fakeManager) GetHTTPClient() *http.Client {
 type fakeEventRecorder struct{}
 
 func (f *fakeEventRecorder) Event(object runtime.Object, eventtype, reason, message string) {}
-func (f *fakeEventRecorder) Eventf(object runtime.Object, eventtype, reason, messageFmt string, args ...interface{}) {}
-func (f *fakeEventRecorder) AnnotatedEventf(object runtime.Object, annotations map[string]string, eventtype, reason, messageFmt string, args ...interface{}) {}
+func (f *fakeEventRecorder) Eventf(object runtime.Object, eventtype, reason, messageFmt string, args ...interface{}) {
+}
+func (f *fakeEventRecorder) AnnotatedEventf(object runtime.Object, annotations map[string]string, eventtype, reason, messageFmt string, args ...interface{}) {
+}
 
 type fakeRESTMapper struct{}
 
@@ -656,4 +658,3 @@ func TestIntegration_JobFlowLifecycle(t *testing.T) {
 		t.Error("Expected at least one step in spec")
 	}
 }
-

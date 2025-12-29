@@ -44,4 +44,3 @@ func mustMarshalJobTemplate(job *batchv1.Job) []byte {
 	}
 	return raw
 }
-

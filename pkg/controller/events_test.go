@@ -191,4 +191,3 @@ func TestEventRecorder_Integration(t *testing.T) {
 		t.Logf("Created %d events", len(events.Items))
 	}
 }
-

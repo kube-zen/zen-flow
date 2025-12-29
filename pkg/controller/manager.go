@@ -85,4 +85,3 @@ func ManagerOptions(namespace string, enableLeaderElection bool) ctrl.Options {
 
 	return opts
 }
-

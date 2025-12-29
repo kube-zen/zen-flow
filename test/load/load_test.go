@@ -36,20 +36,20 @@ import (
 const (
 	defaultJobFlowCount    = 100
 	defaultStepsPerFlow    = 10
-	defaultConcurrentFlows  = 50
-	defaultTestDuration     = 5 * time.Minute
-	defaultLargeDAGSteps    = 50
+	defaultConcurrentFlows = 50
+	defaultTestDuration    = 5 * time.Minute
+	defaultLargeDAGSteps   = 50
 )
 
 // LoadTestConfig configures load test parameters
 type LoadTestConfig struct {
-	JobFlowCount      int
-	StepsPerFlow      int
-	ConcurrentFlows   int
-	TestDuration      time.Duration
-	LargeDAGSteps     int
-	Namespace         string
-	SkipCleanup       bool
+	JobFlowCount    int
+	StepsPerFlow    int
+	ConcurrentFlows int
+	TestDuration    time.Duration
+	LargeDAGSteps   int
+	Namespace       string
+	SkipCleanup     bool
 }
 
 // LoadTestResults contains load test results
@@ -60,15 +60,15 @@ type LoadTestResults struct {
 	TotalStepsExecuted     int
 	AverageCreationTime    time.Duration
 	AverageCompletionTime  time.Duration
-	PeakMemoryUsage       int64
+	PeakMemoryUsage        int64
 	TestDuration           time.Duration
-	Errors                []error
+	Errors                 []error
 }
 
 // createJobFlowTemplate creates a JobFlow template for testing
 func createJobFlowTemplate(name, namespace string, stepCount int, isDAG bool) *v1alpha1.JobFlow {
 	steps := make([]v1alpha1.Step, stepCount)
-	
+
 	for i := 0; i < stepCount; i++ {
 		var deps []string
 		if isDAG && i > 0 {
@@ -381,12 +381,12 @@ func toUnstructured(jobFlow *v1alpha1.JobFlow) *unstructured.Unstructured {
 	u.SetKind("JobFlow")
 	u.SetName(jobFlow.Name)
 	u.SetNamespace(jobFlow.Namespace)
-	
+
 	// Set spec - simplified for testing
 	// Convert steps to JSON-compatible format
 	stepsRaw, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(&jobFlow.Spec)
 	u.Object["spec"] = stepsRaw
-	
+
 	return u
 }
 
@@ -415,4 +415,3 @@ func BenchmarkJobFlowCreation(b *testing.B) {
 		}
 	}
 }
-
