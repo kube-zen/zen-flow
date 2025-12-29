@@ -46,6 +46,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	"github.com/kube-zen/zen-flow/pkg/api/v1alpha1"
+	"github.com/kube-zen/zen-flow/pkg/controller/dag"
 	"github.com/kube-zen/zen-flow/pkg/controller/metrics"
 )
 
@@ -1382,6 +1383,297 @@ func TestJobFlowReconciler_updateStepStatusFromJob_StepNotFound(t *testing.T) {
 	err := reconciler.updateStepStatusFromJob(ctx, jobFlow, "nonexistent", job)
 	if err == nil {
 		t.Error("Expected error for non-existent step, got nil")
+	}
+}
+
+func TestJobFlowReconciler_refreshStepStatusFromJob(t *testing.T) {
+	reconciler, _, _ := setupReconcilerTest(t)
+
+	tests := []struct {
+		name           string
+		stepStatus     v1alpha1.StepStatus
+		jobStatus      batchv1.JobStatus
+		expectedPhase  string
+		expectComplete bool
+	}{
+		{
+			name: "job succeeded",
+			stepStatus: v1alpha1.StepStatus{
+				Name:  "step1",
+				Phase: v1alpha1.StepPhaseRunning,
+			},
+			jobStatus: batchv1.JobStatus{
+				Succeeded: 1,
+			},
+			expectedPhase:  v1alpha1.StepPhaseSucceeded,
+			expectComplete: true,
+		},
+		{
+			name: "job failed",
+			stepStatus: v1alpha1.StepStatus{
+				Name:  "step1",
+				Phase: v1alpha1.StepPhaseRunning,
+			},
+			jobStatus: batchv1.JobStatus{
+				Failed: 1,
+			},
+			expectedPhase:  v1alpha1.StepPhaseFailed,
+			expectComplete: true,
+		},
+		{
+			name: "job still running",
+			stepStatus: v1alpha1.StepStatus{
+				Name:  "step1",
+				Phase: v1alpha1.StepPhaseRunning,
+			},
+			jobStatus: batchv1.JobStatus{
+				Active: 1,
+			},
+			expectedPhase:  v1alpha1.StepPhaseRunning,
+			expectComplete: false,
+		},
+		{
+			name: "phase transition from pending to running",
+			stepStatus: v1alpha1.StepStatus{
+				Name:  "step1",
+				Phase: v1alpha1.StepPhasePending,
+			},
+			jobStatus: batchv1.JobStatus{
+				Active: 1,
+			},
+			expectedPhase:  v1alpha1.StepPhaseRunning,
+			expectComplete: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			jobFlow := &v1alpha1.JobFlow{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: "default",
+				},
+				Status: v1alpha1.JobFlowStatus{
+					Steps: []v1alpha1.StepStatus{tt.stepStatus},
+				},
+			}
+
+			job := &batchv1.Job{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-job",
+					Namespace: "default",
+				},
+				Status: tt.jobStatus,
+			}
+
+			// Test refreshStepStatusFromJob (in-memory update)
+			reconciler.refreshStepStatusFromJob(jobFlow, "step1", job)
+
+			// Verify step status was updated
+			stepStatus := reconciler.getStepStatus(jobFlow.Status, "step1")
+			if stepStatus == nil {
+				t.Fatal("Step status not found")
+			}
+			if stepStatus.Phase != tt.expectedPhase {
+				t.Errorf("Expected phase %s, got %s", tt.expectedPhase, stepStatus.Phase)
+			}
+			if tt.expectComplete && stepStatus.CompletionTime == nil {
+				t.Error("Expected CompletionTime to be set")
+			}
+			if !tt.expectComplete && stepStatus.CompletionTime != nil {
+				t.Error("Expected CompletionTime to be nil for running job")
+			}
+		})
+	}
+}
+
+func TestJobFlowReconciler_createExecutionPlan(t *testing.T) {
+	reconciler, _, _ := setupReconcilerTest(t)
+
+	// Create a simple DAG: step1 -> step2
+	jobFlow := &v1alpha1.JobFlow{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "plan-test",
+			Namespace: "default",
+		},
+		Spec: v1alpha1.JobFlowSpec{
+			Steps: []v1alpha1.Step{
+				{Name: "step1"},
+				{Name: "step2", Dependencies: []string{"step1"}},
+			},
+		},
+		Status: v1alpha1.JobFlowStatus{
+			Steps: []v1alpha1.StepStatus{
+				{
+					Name:  "step1",
+					Phase: v1alpha1.StepPhaseSucceeded,
+				},
+			},
+		},
+	}
+
+	// Build DAG
+	dagGraph, sortedSteps, err := dag.BuildDAG(jobFlow.Spec.Steps)
+	if err != nil {
+		t.Fatalf("Failed to build DAG: %v", err)
+	}
+
+	// Test createExecutionPlan
+	plan := reconciler.createExecutionPlan(dagGraph, jobFlow, sortedSteps)
+
+	// step2 should be ready since step1 is completed
+	if len(plan.ReadySteps) != 1 {
+		t.Errorf("Expected 1 ready step, got %d", len(plan.ReadySteps))
+	}
+	if len(plan.ReadySteps) > 0 && plan.ReadySteps[0] != "step2" {
+		t.Errorf("Expected step2 to be ready, got %s", plan.ReadySteps[0])
+	}
+}
+
+func TestJobFlowReconciler_createExecutionPlan_ContinueOnFailure(t *testing.T) {
+	reconciler, _, _ := setupReconcilerTest(t)
+
+	// Create a flow where step1 failed but has ContinueOnFailure
+	jobFlow := &v1alpha1.JobFlow{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "plan-test",
+			Namespace: "default",
+		},
+		Spec: v1alpha1.JobFlowSpec{
+			Steps: []v1alpha1.Step{
+				{
+					Name:              "step1",
+					ContinueOnFailure: true,
+				},
+				{Name: "step2", Dependencies: []string{"step1"}},
+			},
+		},
+		Status: v1alpha1.JobFlowStatus{
+			Steps: []v1alpha1.StepStatus{
+				{
+					Name:  "step1",
+					Phase: v1alpha1.StepPhaseFailed,
+				},
+			},
+		},
+	}
+
+	// Build DAG
+	dagGraph, sortedSteps, err := dag.BuildDAG(jobFlow.Spec.Steps)
+	if err != nil {
+		t.Fatalf("Failed to build DAG: %v", err)
+	}
+
+	// Test createExecutionPlan
+	plan := reconciler.createExecutionPlan(dagGraph, jobFlow, sortedSteps)
+
+	// step2 should be ready since step1 failed but has ContinueOnFailure
+	if len(plan.ReadySteps) != 1 {
+		t.Errorf("Expected 1 ready step, got %d", len(plan.ReadySteps))
+	}
+	if len(plan.ReadySteps) > 0 && plan.ReadySteps[0] != "step2" {
+		t.Errorf("Expected step2 to be ready, got %s", plan.ReadySteps[0])
+	}
+}
+
+func TestJobFlowReconciler_createExecutionPlan_WhenCondition(t *testing.T) {
+	reconciler, _, _ := setupReconcilerTest(t)
+
+	// Create a flow with when condition
+	jobFlow := &v1alpha1.JobFlow{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "plan-test",
+			Namespace: "default",
+		},
+		Spec: v1alpha1.JobFlowSpec{
+			Steps: []v1alpha1.Step{
+				{Name: "step1"},
+				{
+					Name:  "step2",
+					When:  "never", // Should not execute
+					Dependencies: []string{"step1"},
+				},
+			},
+		},
+		Status: v1alpha1.JobFlowStatus{
+			Steps: []v1alpha1.StepStatus{
+				{
+					Name:  "step1",
+					Phase: v1alpha1.StepPhaseSucceeded,
+				},
+			},
+		},
+	}
+
+	// Build DAG
+	dagGraph, sortedSteps, err := dag.BuildDAG(jobFlow.Spec.Steps)
+	if err != nil {
+		t.Fatalf("Failed to build DAG: %v", err)
+	}
+
+	// Test createExecutionPlan
+	plan := reconciler.createExecutionPlan(dagGraph, jobFlow, sortedSteps)
+
+	// step2 should NOT be ready because when condition is "never"
+	if len(plan.ReadySteps) != 0 {
+		t.Errorf("Expected 0 ready steps (when=never), got %d: %v", len(plan.ReadySteps), plan.ReadySteps)
+	}
+}
+
+func TestJobFlowReconciler_refreshStepStatuses_JobNotFound(t *testing.T) {
+	reconciler, fakeClient, _ := setupReconcilerTest(t)
+
+	jobFlow := &v1alpha1.JobFlow{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "refresh-test",
+			Namespace: "default",
+			UID:       types.UID("refresh-uid-123"),
+		},
+		Spec: v1alpha1.JobFlowSpec{
+			Steps: []v1alpha1.Step{
+				{Name: "step1"},
+			},
+		},
+		Status: v1alpha1.JobFlowStatus{
+			Steps: []v1alpha1.StepStatus{
+				{
+					Name:  "step1",
+					Phase: v1alpha1.StepPhaseRunning,
+					JobRef: &corev1.ObjectReference{
+						Name:      "missing-job",
+						Namespace: "default",
+					},
+					StartTime: &metav1.Time{Time: time.Now().Add(-5 * time.Minute)},
+				},
+			},
+		},
+	}
+
+	if err := fakeClient.Create(context.Background(), jobFlow); err != nil {
+		t.Fatalf("Failed to create JobFlow: %v", err)
+	}
+
+	ctx := context.Background()
+
+	// Test refreshStepStatuses with missing job
+	err := reconciler.refreshStepStatuses(ctx, jobFlow)
+	if err != nil {
+		t.Fatalf("refreshStepStatuses returned error: %v", err)
+	}
+
+	// Verify step was marked as failed
+	stepStatus := reconciler.getStepStatus(jobFlow.Status, "step1")
+	if stepStatus == nil {
+		t.Fatal("Step status not found")
+	}
+	if stepStatus.Phase != v1alpha1.StepPhaseFailed {
+		t.Errorf("Expected phase Failed, got %s", stepStatus.Phase)
+	}
+	if stepStatus.CompletionTime == nil {
+		t.Error("Expected CompletionTime to be set when job not found")
+	}
+	if stepStatus.Message == "" {
+		t.Error("Expected error message to be set")
 	}
 }
 
