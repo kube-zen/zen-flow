@@ -121,8 +121,8 @@ namespace:
 
 # Additional environment variables
 env: []
-  # - name: CUSTOM_VAR
-  #   value: "custom-value"
+# - name: CUSTOM_VAR
+#   value: "custom-value"
 
 # Additional volume mounts
 extraVolumeMounts: []

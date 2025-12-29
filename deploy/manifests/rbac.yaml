@@ -10,10 +10,13 @@ metadata:
   name: zen-flow-controller
   annotations:
     # RBAC justification: Controller only needs read access to JobFlows and write access to status
-    rbac.authorization.k8s.io/justification: "Controller watches JobFlows and updates their status subresource. Does not create or delete JobFlows (users do that)."
+    rbac.authorization.k8s.io/justification: |
+      Controller watches JobFlows and updates their status subresource.
+      Does not create or delete JobFlows (users do that).
 rules:
   # JobFlow CRD: Read access + status updates + delete (for TTL cleanup and Replace policy)
-  # Justification: Controller watches JobFlows via informer, updates status subresource, and deletes JobFlows for TTL cleanup and concurrency policy Replace
+  # Justification: Controller watches JobFlows via informer, updates status subresource,
+  # and deletes JobFlows for TTL cleanup and concurrency policy Replace
   - apiGroups: ["workflow.kube-zen.io"]
     resources: ["jobflows"]
     verbs: ["get", "list", "watch", "delete"]
