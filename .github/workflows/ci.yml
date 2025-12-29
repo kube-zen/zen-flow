@@ -121,7 +121,12 @@ jobs:
             ./pkg/errors/...
       
       - name: Run integration tests
-        run: go test -v -timeout=5m ./test/integration/...
+        run: |
+          if [ -d "./test/integration" ] && [ -n "$(find ./test/integration -name '*.go' -type f 2>/dev/null)" ]; then
+            go test -v -timeout=5m ./test/integration/...
+          else
+            echo "No integration tests found, skipping..."
+          fi
       
       - name: Check coverage threshold
         run: |
