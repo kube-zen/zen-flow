@@ -9,6 +9,10 @@ zen-flow provides two types of admission webhooks:
 1. **Validating Webhook**: Validates JobFlow resources before they are created or updated
 2. **Mutating Webhook**: Sets default values for JobFlow resources on creation
 
+**Installation Methods:**
+- **Helm (Recommended)**: Webhooks are managed via Helm chart templates. See [Operator Guide](OPERATOR_GUIDE.md) for Helm installation.
+- **kubectl-only**: This guide covers manual webhook setup for kubectl installations.
+
 ## Prerequisites
 
 - Kubernetes cluster (1.20+)
@@ -25,13 +29,42 @@ kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/
 
 ### 2. Deploy Certificate (cert-manager)
 
+**Note**: For kubectl-only installations, you need to create a cert-manager Issuer first, then the Certificate.
+
 ```bash
-# Deploy certificate issuer and certificate
-kubectl apply -f deploy/webhook/certificate.yaml
+# Create cert-manager Issuer (self-signed for testing, or use your own ClusterIssuer)
+cat <<EOF | kubectl apply -f -
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: zen-flow-webhook-cert
+  namespace: zen-flow-system
+spec:
+  selfSigned: {}
+EOF
+
+# Create Certificate
+cat <<EOF | kubectl apply -f -
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: zen-flow-webhook-cert
+  namespace: zen-flow-system
+spec:
+  dnsNames:
+    - zen-flow-controller-metrics.zen-flow-system.svc
+    - zen-flow-controller-metrics.zen-flow-system.svc.cluster.local
+  issuerRef:
+    name: zen-flow-webhook-cert
+    kind: Issuer
+  secretName: zen-flow-webhook-cert
+EOF
 
 # Wait for certificate to be ready
 kubectl wait --for=condition=Ready certificate/zen-flow-webhook-cert -n zen-flow-system --timeout=60s
 ```
+
+**Alternative**: Use the certificate file in `deploy/webhook/certificate.yaml` but note it references `zen-flow-webhook` service. For kubectl-only installs using `deploy/manifests/`, update the DNS names to match `zen-flow-controller-metrics`.
 
 ### 3. Deploy Webhook Configurations
 
@@ -39,6 +72,8 @@ kubectl wait --for=condition=Ready certificate/zen-flow-webhook-cert -n zen-flow
 # Deploy webhook configurations (with cert-manager CA injection)
 kubectl apply -f deploy/manifests/webhook.yaml
 ```
+
+**Canonical Path**: `deploy/manifests/webhook.yaml` is the canonical webhook configuration for kubectl-only installations. It points to the `zen-flow-controller-metrics` service.
 
 **Note**: The webhook configurations in `deploy/manifests/webhook.yaml` use cert-manager annotations to automatically inject the CA bundle. If you're not using cert-manager, you must either:
 - Manually set the `caBundle` field in the webhook configurations, or

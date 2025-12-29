@@ -45,7 +45,7 @@ webhooks:
         resources: ["jobflows"]
     admissionReviewVersions: ["v1", "v1beta1"]
     sideEffects: None
-    failurePolicy: Fail
+    failurePolicy: {{ .Values.webhook.failurePolicy | default "Ignore" }}
 ---
 apiVersion: admissionregistration.k8s.io/v1
 kind: MutatingWebhookConfiguration
@@ -75,6 +75,6 @@ webhooks:
         resources: ["jobflows"]
     admissionReviewVersions: ["v1", "v1beta1"]
     sideEffects: None
-    failurePolicy: Fail
+    failurePolicy: {{ .Values.webhook.failurePolicy | default "Ignore" }}
 {{- end }}
 

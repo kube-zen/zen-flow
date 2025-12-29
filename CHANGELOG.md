@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Helm chart defaults**: Webhooks disabled by default for safe installation without prerequisites
+- **Helm RBAC**: Added delete permissions for jobflows and jobs to match controller behavior
+- **Webhook safety**: Default failurePolicy set to Ignore to prevent bricking installations
+- **Helm CRD installation**: CRDs now install automatically via Helm chart
+- **Webhook TLS setup**: Consolidated to single approach with cert-manager support
+- **Metrics gauge drift**: Added recompute methods for accurate metrics
+
+### Changed
+- **Installation**: Helm is now the recommended installation method
+- **Quick Start**: Complete rewrite with Helm-first approach, troubleshooting, and uninstall instructions
+- **Webhook configuration**: Production-ready TLS setup with cert-manager annotations
+
 ### Added
 - Comprehensive controller test suite (85%+ coverage)
 - E2E test suite for JobFlow lifecycle and DAG execution

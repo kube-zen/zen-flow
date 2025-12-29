@@ -30,75 +30,169 @@
 
 - Kubernetes cluster (1.24+)
 - kubectl configured to access your cluster
+- Helm 3.x (for installation)
 
-### Installation
+### Installation (Helm - Recommended)
 
-1. **Deploy the CRD:**
-   ```bash
-   kubectl apply -f deploy/crds/
-   ```
+Install zen-flow using Helm:
 
-2. **Deploy the controller:**
-   ```bash
-   kubectl apply -f deploy/manifests/
-   ```
+```bash
+# Add the Helm repository
+helm repo add zen-flow https://kube-zen.github.io/zen-flow/charts
+helm repo update
 
-3. **Verify installation:**
-   ```bash
-   kubectl get pods -n zen-flow-system
-   kubectl get jobflows
-   ```
-
-### Example Usage
-
-Create a simple linear flow:
-
-```yaml
-apiVersion: workflow.zen.io/v1alpha1
-kind: JobFlow
-metadata:
-  name: my-flow
-spec:
-  steps:
-    - name: step1
-      template:
-        apiVersion: batch/v1
-        kind: Job
-        spec:
-          template:
-            spec:
-              containers:
-                - name: main
-                  image: busybox:latest
-                  command: ["echo", "Step 1"]
-              restartPolicy: OnFailure
-    - name: step2
-      dependencies: ["step1"]
-      template:
-        apiVersion: batch/v1
-        kind: Job
-        spec:
-          template:
-            spec:
-              containers:
-                - name: main
-                  image: busybox:latest
-                  command: ["echo", "Step 2"]
-              restartPolicy: OnFailure
+# Install zen-flow
+helm install zen-flow zen-flow/zen-flow \
+  --namespace zen-flow-system \
+  --create-namespace
 ```
 
-Apply it:
+**Alternative**: Install from local chart during development:
+```bash
+helm install zen-flow ./charts/zen-flow --namespace zen-flow-system --create-namespace
+```
+
+**Note**: Webhooks are disabled by default for safe installation. See [Enabling Webhooks](#enabling-webhooks) below.
+
+### Verify Installation
+
+```bash
+# Check controller pod is running
+kubectl get pods -n zen-flow-system
+
+# Check CRDs are installed
+kubectl get crd jobflows.workflow.zen.io
+
+# Check controller logs
+kubectl logs -n zen-flow-system -l app.kubernetes.io/name=zen-flow
+```
+
+### Create Your First JobFlow
+
+Apply the example:
 
 ```bash
 kubectl apply -f examples/simple-linear-flow.yaml
 ```
 
-Check status:
+Watch the JobFlow progress:
 
 ```bash
-kubectl get jobflow my-flow
-kubectl describe jobflow my-flow
+# Watch JobFlow status
+kubectl get jobflow simple-linear-flow -w
+
+# Check detailed status
+kubectl describe jobflow simple-linear-flow
+
+# View created Jobs
+kubectl get jobs -l jobflow=simple-linear-flow
 ```
+
+### Expected Status Transitions
+
+A JobFlow typically transitions through these phases:
+
+1. **Pending** → JobFlow created, waiting to start
+2. **Running** → Steps are executing
+3. **Succeeded** → All steps completed successfully
+
+Watch the transitions:
+
+```bash
+kubectl get jobflow simple-linear-flow -o jsonpath='{.status.phase}' && echo
+```
+
+### Troubleshooting
+
+**Controller not starting:**
+```bash
+# Check pod status
+kubectl get pods -n zen-flow-system
+
+# Check logs
+kubectl logs -n zen-flow-system -l app.kubernetes.io/name=zen-flow
+
+# Check events
+kubectl get events -n zen-flow-system --sort-by='.lastTimestamp'
+```
+
+**JobFlow stuck in Pending:**
+```bash
+# Check for validation errors
+kubectl describe jobflow <name>
+
+# Check controller is running
+kubectl get pods -n zen-flow-system
+```
+
+**Webhook issues (if enabled):**
+```bash
+# Check webhook configurations
+kubectl get validatingwebhookconfiguration
+kubectl get mutatingwebhookconfiguration
+
+# Check certificate (if using cert-manager)
+kubectl get certificate -n zen-flow-system
+```
+
+### Uninstall
+
+```bash
+# Uninstall Helm release
+helm uninstall zen-flow --namespace zen-flow-system
+
+# Clean up CRDs (optional - removes JobFlow CRD from cluster)
+kubectl delete crd jobflows.workflow.zen.io
+
+# Clean up namespace (optional)
+kubectl delete namespace zen-flow-system
+```
+
+### Enabling Webhooks
+
+Webhooks are disabled by default for safe installation. To enable:
+
+**Option 1: With cert-manager (Recommended for Production)**
+
+```bash
+# Install cert-manager first
+kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.13.0/cert-manager.yaml
+
+# Upgrade Helm release with webhooks enabled
+helm upgrade zen-flow ./charts/zen-flow \
+  --namespace zen-flow-system \
+  --set webhook.enabled=true \
+  --set webhook.certManager.enabled=true \
+  --set webhook.certManager.issuer.name=your-cluster-issuer \
+  --set webhook.certManager.issuer.kind=ClusterIssuer \
+  --set webhook.failurePolicy=Fail
+```
+
+**Option 2: Without cert-manager (Development)**
+
+```bash
+# Enable webhooks with Ignore failure policy (safe for dev)
+helm upgrade zen-flow ./charts/zen-flow \
+  --namespace zen-flow-system \
+  --set webhook.enabled=true \
+  --set webhook.failurePolicy=Ignore
+```
+
+See [Webhook Setup Guide](docs/WEBHOOK_SETUP.md) for detailed instructions.
+
+### Alternative: kubectl Installation
+
+For environments without Helm:
+
+```bash
+# Install CRDs
+kubectl apply -f deploy/crds/
+
+# Install controller
+kubectl apply -f deploy/manifests/
+```
+
+**Note**: kubectl installation requires manual webhook certificate management. See [docs/WEBHOOK_SETUP.md](docs/WEBHOOK_SETUP.md).
 
 ## Architecture
 
@@ -166,6 +260,15 @@ status:
     failedSteps: 0
 ```
 
+## Release Information
+
+- **Docker Images**: Published to `docker.io/kubezen/zen-flow-controller`
+  - Tags: `0.0.1-alpha`, `latest`
+- **Helm Chart Repository**: `https://kube-zen.github.io/zen-flow/charts`
+  - Chart version: `0.0.1-alpha`
+  - App version: `0.0.1-alpha`
+- **CRDs**: Included in chart (`charts/zen-flow/crds/`) or available in `deploy/crds/`
+
 ## Development
 
 ### Building
@@ -176,6 +279,10 @@ make build
 
 # Build Docker image
 make build-image
+
+# Push to Docker Hub (requires login)
+docker push kubezen/zen-flow-controller:0.0.1-alpha
+docker push kubezen/zen-flow-controller:latest
 
 # Run locally
 make run
