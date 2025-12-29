@@ -10,7 +10,6 @@ image:
 imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
-
 serviceAccount:
   # Specifies whether a service account should be created
   create: true
@@ -19,30 +18,25 @@ serviceAccount:
   # The name of the service account to use.
   # If not set and create is true, a name is generated using the fullname template
   name: ""
-
 podAnnotations: {}
-
 podSecurityContext:
   runAsNonRoot: true
   runAsUser: 65534
   fsGroup: 65534
   seccompProfile:
     type: RuntimeDefault
-
 securityContext:
   allowPrivilegeEscalation: false
   capabilities:
     drop:
-    - ALL
+      - ALL
   readOnlyRootFilesystem: true
-
 service:
   type: ClusterIP
   port: 8080
   webhookPort: 443
   targetPort: 8080
   webhookTargetPort: 9443
-
 resources:
   # We usually recommend not to specify default resources and to leave this as a conscious
   # choice for the user. This also increases chances charts run on environments with little
@@ -54,11 +48,8 @@ resources:
   requests:
     cpu: 100m
     memory: 64Mi
-
 nodeSelector: {}
-
 tolerations: []
-
 affinity: {}
 
 # Leader election configuration
