@@ -82,4 +82,3 @@ spec:
                   configMap:
                     name: schema-migrations
               restartPolicy: OnFailure
-
