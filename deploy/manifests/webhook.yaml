@@ -31,7 +31,8 @@ webhooks:
     failurePolicy: Ignore
     # caBundle is automatically injected by cert-manager via annotation above
     # failurePolicy: Ignore allows resource creation even if webhook is unreachable (safe for alpha)
-    # For production with cert-manager, you can change to failurePolicy: Fail for strict validation---
+    # For production with cert-manager, you can change to failurePolicy: Fail for strict validation
+---
 apiVersion: admissionregistration.k8s.io/v1
 kind: MutatingWebhookConfiguration
 metadata:
