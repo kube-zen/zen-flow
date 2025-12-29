@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"strings"
 	"time"
 
 	batchv1 "k8s.io/api/batch/v1"
@@ -790,7 +791,37 @@ func (r *JobFlowReconciler) handleStepFailure(ctx context.Context, jobFlow *v1al
 
 // isRetryable checks if an error is retryable.
 func (r *JobFlowReconciler) isRetryable(err error) bool {
-	return k8serrors.IsConflict(err) || k8serrors.IsServerTimeout(err)
+	if err == nil {
+		return false
+	}
+	
+	// Kubernetes API errors that are typically retryable
+	if k8serrors.IsConflict(err) || k8serrors.IsServerTimeout(err) {
+		return true
+	}
+	
+	// Network errors (connection refused, timeout, etc.)
+	if k8serrors.IsUnexpectedServerError(err) {
+		return true
+	}
+	
+	// Check for temporary network errors
+	errStr := err.Error()
+	temporaryErrors := []string{
+		"connection refused",
+		"connection reset",
+		"timeout",
+		"temporary failure",
+		"network is unreachable",
+		"no route to host",
+	}
+	for _, tempErr := range temporaryErrors {
+		if strings.Contains(strings.ToLower(errStr), tempErr) {
+			return true
+		}
+	}
+	
+	return false
 }
 
 // updateJobFlowStatus updates the JobFlow status.

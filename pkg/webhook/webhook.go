@@ -43,10 +43,21 @@ var (
 	ErrUnexpectedObjectType = errors.New("expected JobFlow")
 )
 
+var (
+	// schemeInitialized tracks if the scheme has been initialized
+	schemeInitialized = false
+	// schemeInitError stores any error from scheme initialization
+	schemeInitError error
+)
+
 func init() {
 	// Add JobFlow to scheme for deserialization
+	// Note: This is called during package initialization, so we store the error
+	// and check it when creating the webhook server
 	if err := v1alpha1.AddToScheme(scheme.Scheme); err != nil {
-		panic(fmt.Sprintf("failed to add scheme: %v", err))
+		schemeInitError = fmt.Errorf("failed to add scheme: %w", err)
+	} else {
+		schemeInitialized = true
 	}
 }
 
@@ -57,6 +68,14 @@ type WebhookServer struct {
 
 // NewWebhookServer creates a new webhook server.
 func NewWebhookServer(addr, certFile, keyFile string) (*WebhookServer, error) {
+	// Check if scheme was initialized successfully
+	if !schemeInitialized {
+		if schemeInitError != nil {
+			return nil, fmt.Errorf("webhook server initialization failed: %w", schemeInitError)
+		}
+		return nil, fmt.Errorf("webhook server initialization failed: scheme not initialized")
+	}
+
 	mux := http.NewServeMux()
 	ws := &WebhookServer{}
 
