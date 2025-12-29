@@ -683,7 +683,7 @@ func (r *JobFlowReconciler) updateStepStatusFromJob(ctx context.Context, jobFlow
 	// Update phase based on job conditions
 	// P0.8: Track phase transitions properly
 	oldPhase := stepStatus.Phase
-	newPhase := stepStatus.Phase
+	var newPhase string
 
 	if job.Status.Succeeded > 0 {
 		newPhase = v1alpha1.StepPhaseSucceeded

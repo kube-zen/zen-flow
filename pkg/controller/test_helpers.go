@@ -17,37 +17,11 @@ limitations under the License.
 package controller
 
 import (
-	"context"
 	"encoding/json"
 
 	batchv1 "k8s.io/api/batch/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/dynamic/fake"
-
-	"github.com/kube-zen/zen-flow/pkg/api/v1alpha1"
 )
-
-// setupJobFlowInFakeClient adds a JobFlow to the fake dynamic client for testing.
-func setupJobFlowInFakeClient(dynamicClient *fake.FakeDynamicClient, jobFlow *v1alpha1.JobFlow) error {
-	// Convert to unstructured
-	unstructuredObj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(jobFlow)
-	if err != nil {
-		return err
-	}
-
-	// Create unstructured object with proper GVK
-	unstructuredJobFlow := &unstructured.Unstructured{Object: unstructuredObj}
-	unstructuredJobFlow.SetGroupVersionKind(v1alpha1.SchemeGroupVersion.WithKind("JobFlow"))
-
-	// Add to fake client - use context.Background() for testing
-	ctx := context.Background()
-	_, err = dynamicClient.Resource(v1alpha1.SchemeGroupVersion.WithResource("jobflows")).
-		Namespace(jobFlow.Namespace).
-		Create(ctx, unstructuredJobFlow, metav1.CreateOptions{})
-	return err
-}
 
 // mustMarshalJobTemplate marshals a Job template to JSON with proper Kind and APIVersion.
 func mustMarshalJobTemplate(job *batchv1.Job) []byte {
@@ -70,3 +44,4 @@ func mustMarshalJobTemplate(job *batchv1.Job) []byte {
 	}
 	return raw
 }
+

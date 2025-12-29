@@ -21,7 +21,7 @@ All planned phases (Critical Infrastructure, Validation & Quality, Deployment & 
 - Enhance E2E test coverage with new features (TTL, retries, timeouts, concurrency, pod failure policies, when conditions, manual approval)
 - Test full lifecycle: create JobFlow → reconcile → Job created → Job succeeds → step status updated → next steps start → flow completes
 - Add tests for edge cases (job deletion, job failure, etc.)
-- Target: Achieve 75%+ test coverage
+- Target: Achieve 70%+ test coverage (currently 68.8%)
 
 ### Feature Enhancements
 - **In Progress**: Artifact/parameter handling structure in place (see [Limitations](README.md#limitations))
