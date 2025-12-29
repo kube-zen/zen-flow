@@ -107,7 +107,6 @@ env: []
 extraVolumeMounts: []
 # Additional volumes
 extraVolumes: []
-
 # Liveness and readiness probes
 livenessProbe:
   httpGet:
@@ -117,7 +116,6 @@ livenessProbe:
   periodSeconds: 10
   timeoutSeconds: 5
   failureThreshold: 3
-
 readinessProbe:
   httpGet:
     path: /readyz
@@ -126,9 +124,7 @@ readinessProbe:
   periodSeconds: 5
   timeoutSeconds: 3
   failureThreshold: 3
-
 # Controller configuration
 controller:
   maxConcurrentReconciles: 10
   resyncPeriod: "10m"
-

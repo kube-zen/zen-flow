@@ -206,4 +206,3 @@ spec:
     kind: JobFlow
     shortNames: ["jf", "flow"]
     categories: ["all"]
-
