@@ -4,22 +4,17 @@ description: A Helm chart for zen-flow - Kubernetes-native job orchestration con
 type: application
 version: 0.0.1-alpha
 appVersion: "0.0.1-alpha"
-
 keywords:
   - kubernetes
   - workflow
   - job-orchestration
   - dag
   - batch-processing
-
 home: https://github.com/kube-zen/zen-flow
 sources:
   - https://github.com/kube-zen/zen-flow
-
 maintainers:
   - name: Kube-ZEN Team
     email: team@kube-zen.io
-
 annotations:
   category: Workflow
-
