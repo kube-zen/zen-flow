@@ -59,9 +59,9 @@ func NewJobFlowReconciler(mgr ctrl.Manager, metricsRecorder *metrics.Recorder, e
 }
 
 // Reconcile is part of the main kubernetes reconciliation loop
-// +kubebuilder:rbac:groups=workflow.zen.io,resources=jobflows,verbs=get;list;watch
+// +kubebuilder:rbac:groups=workflow.zen.io,resources=jobflows,verbs=get;list;watch;delete
 // +kubebuilder:rbac:groups=workflow.zen.io,resources=jobflows/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create
+// +kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;delete
 // +kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch;create
 // +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create
 // +kubebuilder:rbac:groups="",resources=events,verbs=create

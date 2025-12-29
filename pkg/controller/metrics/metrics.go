@@ -111,6 +111,22 @@ func (r *Recorder) RecordJobFlowPhase(phase, namespace string) {
 	JobFlowsCurrent.WithLabelValues(phase, namespace).Inc()
 }
 
+// RecomputeJobFlowMetrics recomputes JobFlow metrics from current state.
+// This should be called periodically or on startup to ensure gauges reflect true current state.
+func (r *Recorder) RecomputeJobFlowMetrics(jobFlowsByPhase map[string]map[string]int) {
+	// Reset all gauges to zero first
+	// Note: We can't easily reset all label combinations, so we'll set known phases
+	phases := []string{"Pending", "Running", "Succeeded", "Failed", "Suspended", "Paused"}
+	
+	// Set gauges from current state snapshot
+	for namespace, phaseCounts := range jobFlowsByPhase {
+		for _, phase := range phases {
+			count := phaseCounts[phase]
+			JobFlowsCurrent.WithLabelValues(phase, namespace).Set(float64(count))
+		}
+	}
+}
+
 // RecordJobFlowPhaseTransition records a JobFlow phase transition.
 // P0.8: Properly handles phase transitions by decrementing old phase and incrementing new phase.
 func (r *Recorder) RecordJobFlowPhaseTransition(jobFlowName, namespace, oldPhase, newPhase string) {
@@ -142,6 +158,32 @@ func (r *Recorder) RecordStepPhase(flow, phase string) {
 	
 	// Update current state (gauge)
 	StepsCurrent.WithLabelValues(flow, phase).Inc()
+}
+
+// RecomputeStepMetrics recomputes step metrics from current state.
+// This should be called periodically or on startup to ensure gauges reflect true current state.
+func (r *Recorder) RecomputeStepMetrics(stepsByFlow map[string]map[string]int) {
+	// Set gauges from current state snapshot
+	phases := []string{"Pending", "Running", "Succeeded", "Failed", "Skipped", "PendingApproval"}
+	
+	for flow, phaseCounts := range stepsByFlow {
+		for _, phase := range phases {
+			count := phaseCounts[phase]
+			StepsCurrent.WithLabelValues(flow, phase).Set(float64(count))
+		}
+	}
+}
+
+// RecordJobFlowCurrentState records the current state of a JobFlow, setting the gauge to exact value.
+// This should be called during reconciliation to ensure gauges reflect true current state.
+func (r *Recorder) RecordJobFlowCurrentState(phase, namespace string, count int) {
+	JobFlowsCurrent.WithLabelValues(phase, namespace).Set(float64(count))
+}
+
+// RecordStepCurrentState records the current state of steps for a flow, setting the gauge to exact value.
+// This should be called during reconciliation to ensure gauges reflect true current state.
+func (r *Recorder) RecordStepCurrentState(flow, phase string, count int) {
+	StepsCurrent.WithLabelValues(flow, phase).Set(float64(count))
 }
 
 // RecordStepPhaseTransition records a step phase transition.

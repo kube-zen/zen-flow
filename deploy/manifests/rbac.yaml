@@ -12,19 +12,19 @@ metadata:
     # RBAC justification: Controller only needs read access to JobFlows and write access to status
     rbac.authorization.k8s.io/justification: "Controller watches JobFlows and updates their status subresource. Does not create or delete JobFlows (users do that)."
 rules:
-  # JobFlow CRD: Read-only access + status updates
-  # Justification: Controller watches JobFlows via informer and updates status subresource only
+  # JobFlow CRD: Read access + status updates + delete (for TTL cleanup and Replace policy)
+  # Justification: Controller watches JobFlows via informer, updates status subresource, and deletes JobFlows for TTL cleanup and concurrency policy Replace
   - apiGroups: ["workflow.zen.io"]
     resources: ["jobflows"]
-    verbs: ["get", "list", "watch"]
+    verbs: ["get", "list", "watch", "delete"]
   - apiGroups: ["workflow.zen.io"]
     resources: ["jobflows/status"]
     verbs: ["get", "update", "patch"]
-  # Jobs: Read access + create (controller creates Jobs for steps)
-  # Justification: Controller creates Jobs for steps and watches their status. Does not update or delete Jobs (Kubernetes handles that).
+  # Jobs: Read access + create + delete (controller creates Jobs for steps and deletes them on timeout)
+  # Justification: Controller creates Jobs for steps, watches their status, and deletes Jobs when steps timeout
   - apiGroups: ["batch"]
     resources: ["jobs"]
-    verbs: ["get", "list", "watch", "create"]
+    verbs: ["get", "list", "watch", "create", "delete"]
   # Core resources: Read access + create for PVCs/ConfigMaps (from resource templates)
   # Justification: Controller creates PVCs and ConfigMaps from resource templates. Does not update or delete them.
   - apiGroups: [""]
