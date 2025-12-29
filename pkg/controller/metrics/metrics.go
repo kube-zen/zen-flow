@@ -22,9 +22,10 @@ import (
 )
 
 var (
-	// JobFlowsTotal is the current number of JobFlows by phase and namespace.
+	// JobFlowsCurrent is the current number of JobFlows by phase and namespace.
 	// P0.8: Changed from Counter to Gauge with Set() semantics to avoid double-counting.
-	JobFlowsTotal = promauto.NewGaugeVec(
+	// Tracks current state: Pending, Running, Succeeded, Failed, Suspended, Paused
+	JobFlowsCurrent = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "zen_flow_jobflows",
 			Help: "Current number of JobFlows by phase and namespace",
@@ -63,6 +64,7 @@ var (
 
 	// StepsCurrent is the current number of steps by phase.
 	// P0.8: Changed from Counter to Gauge with Set() semantics to avoid double-counting.
+	// Tracks current state: Pending, Running, Succeeded, Failed, Skipped, PendingApproval
 	StepsCurrent = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "zen_flow_steps",
@@ -106,7 +108,7 @@ func (r *Recorder) RecordJobFlowPhase(phase, namespace string) {
 	// Update current state (gauge) - this should be called with full recomputation
 	// For now, we'll use Set() to track transitions
 	// In a full implementation, we'd recompute all gauges per reconcile
-	JobFlowsTotal.WithLabelValues(phase, namespace).Inc()
+	JobFlowsCurrent.WithLabelValues(phase, namespace).Inc()
 }
 
 // RecordJobFlowPhaseTransition records a JobFlow phase transition.
@@ -117,9 +119,9 @@ func (r *Recorder) RecordJobFlowPhaseTransition(jobFlowName, namespace, oldPhase
 	
 	// Update gauges: decrement old phase, increment new phase
 	if oldPhase != "" {
-		JobFlowsTotal.WithLabelValues(oldPhase, namespace).Dec()
+		JobFlowsCurrent.WithLabelValues(oldPhase, namespace).Dec()
 	}
-	JobFlowsTotal.WithLabelValues(newPhase, namespace).Inc()
+	JobFlowsCurrent.WithLabelValues(newPhase, namespace).Inc()
 }
 
 // RecordStepDuration records the duration of a step.

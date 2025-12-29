@@ -16,7 +16,7 @@ webhooks:
   - name: validate-jobflow.workflow.zen.io
     clientConfig:
       service:
-        name: zen-flow-controller
+        name: zen-flow-controller-metrics
         namespace: zen-flow-system
         path: "/validate-jobflow"
     rules:
@@ -43,7 +43,7 @@ webhooks:
   - name: mutate-jobflow.workflow.zen.io
     clientConfig:
       service:
-        name: zen-flow-controller
+        name: zen-flow-controller-metrics
         namespace: zen-flow-system
         path: "/mutate-jobflow"
     rules:

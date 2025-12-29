@@ -209,7 +209,7 @@ Before deploying:
 Scan container images regularly:
 
 ```bash
-trivy image kube-zen/zen-flow-controller:latest
+trivy image kubezen/zen-flow-controller:latest
 ```
 
 ### Dependencies

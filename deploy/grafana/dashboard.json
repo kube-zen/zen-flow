@@ -14,24 +14,34 @@
         "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
         "targets": [
           {
-            "expr": "sum(zen_flow_jobflows_total{phase=\"Running\"})",
+            "expr": "sum(zen_flow_jobflows{phase=\"Running\"})",
             "legendFormat": "Running",
             "refId": "A"
           },
           {
-            "expr": "sum(zen_flow_jobflows_total{phase=\"Succeeded\"})",
+            "expr": "sum(zen_flow_jobflows{phase=\"Succeeded\"})",
             "legendFormat": "Succeeded",
             "refId": "B"
           },
           {
-            "expr": "sum(zen_flow_jobflows_total{phase=\"Failed\"})",
+            "expr": "sum(zen_flow_jobflows{phase=\"Failed\"})",
             "legendFormat": "Failed",
             "refId": "C"
           },
           {
-            "expr": "sum(zen_flow_jobflows_total{phase=\"Pending\"})",
+            "expr": "sum(zen_flow_jobflows{phase=\"Pending\"})",
             "legendFormat": "Pending",
             "refId": "D"
+          },
+          {
+            "expr": "sum(zen_flow_jobflows{phase=\"Paused\"})",
+            "legendFormat": "Paused",
+            "refId": "E"
+          },
+          {
+            "expr": "sum(zen_flow_jobflows{phase=\"Suspended\"})",
+            "legendFormat": "Suspended",
+            "refId": "F"
           }
         ],
         "fieldConfig": {
@@ -48,7 +58,7 @@
         "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0},
         "targets": [
           {
-            "expr": "sum(increase(zen_flow_steps_total{phase=\"Succeeded\"}[5m]))",
+            "expr": "sum(rate(zen_flow_step_phase_transitions_total{phase=\"Succeeded\"}[5m])) * 300",
             "legendFormat": "Succeeded (5m)",
             "refId": "A"
           }
@@ -75,7 +85,7 @@
         "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0},
         "targets": [
           {
-            "expr": "sum(rate(zen_flow_steps_total[5m]))",
+            "expr": "sum(rate(zen_flow_step_phase_transitions_total[5m]))",
             "legendFormat": "Steps/sec",
             "refId": "A"
           }
@@ -121,14 +131,19 @@
         "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
         "targets": [
           {
-            "expr": "sum(rate(zen_flow_steps_total{phase=\"Succeeded\"}[5m])) by (flow)",
+            "expr": "sum(rate(zen_flow_step_phase_transitions_total{phase=\"Succeeded\"}[5m])) by (flow)",
             "legendFormat": "{{flow}} - Succeeded",
             "refId": "A"
           },
           {
-            "expr": "sum(rate(zen_flow_steps_total{phase=\"Failed\"}[5m])) by (flow)",
+            "expr": "sum(rate(zen_flow_step_phase_transitions_total{phase=\"Failed\"}[5m])) by (flow)",
             "legendFormat": "{{flow}} - Failed",
             "refId": "B"
+          },
+          {
+            "expr": "sum(rate(zen_flow_step_phase_transitions_total{phase=\"PendingApproval\"}[5m])) by (flow)",
+            "legendFormat": "{{flow}} - PendingApproval",
+            "refId": "C"
           }
         ],
         "yaxes": [
@@ -202,7 +217,7 @@
         "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
         "targets": [
           {
-            "expr": "sum(zen_flow_steps_total) by (phase)",
+            "expr": "sum(zen_flow_steps) by (phase)",
             "legendFormat": "{{phase}}",
             "refId": "A"
           }
@@ -215,7 +230,7 @@
         "gridPos": {"h": 8, "w": 24, "x": 0, "y": 20},
         "targets": [
           {
-            "expr": "sum(zen_flow_jobflows_total) by (namespace, phase)",
+            "expr": "sum(zen_flow_jobflows) by (namespace, phase)",
             "legendFormat": "{{namespace}} - {{phase}}",
             "refId": "A"
           }
@@ -237,7 +252,7 @@
         "gridPos": {"h": 8, "w": 12, "x": 0, "y": 28},
         "targets": [
           {
-            "expr": "topk(10, sum(zen_flow_steps_total) by (flow))",
+            "expr": "topk(10, sum(zen_flow_steps) by (flow))",
             "legendFormat": "{{flow}}",
             "refId": "A"
           }
@@ -253,7 +268,7 @@
         "gridPos": {"h": 8, "w": 12, "x": 12, "y": 28},
         "targets": [
           {
-            "expr": "sum(rate(zen_flow_steps_total{phase=\"Succeeded\"}[5m])) / sum(rate(zen_flow_steps_total[5m])) * 100",
+            "expr": "sum(rate(zen_flow_step_phase_transitions_total{phase=\"Succeeded\"}[5m])) / sum(rate(zen_flow_step_phase_transitions_total[5m])) * 100",
             "legendFormat": "Success Rate",
             "refId": "A"
           }
@@ -268,6 +283,106 @@
             "max": 100
           }
         }
+      },
+      {
+        "id": 12,
+        "title": "Manual Approval Steps Waiting",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 0, "y": 36},
+        "targets": [
+          {
+            "expr": "sum(zen_flow_steps{phase=\"PendingApproval\"})",
+            "legendFormat": "Pending Approval",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": null, "color": "green"},
+                {"value": 1, "color": "yellow"},
+                {"value": 5, "color": "orange"},
+                {"value": 10, "color": "red"}
+              ]
+            },
+            "unit": "short"
+          }
+        }
+      },
+      {
+        "id": 13,
+        "title": "JobFlows Paused (Waiting Approval)",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 6, "y": 36},
+        "targets": [
+          {
+            "expr": "sum(zen_flow_jobflows{phase=\"Paused\"})",
+            "legendFormat": "Paused",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": null, "color": "green"},
+                {"value": 1, "color": "yellow"},
+                {"value": 5, "color": "orange"},
+                {"value": 10, "color": "red"}
+              ]
+            },
+            "unit": "short"
+          }
+        }
+      },
+      {
+        "id": 14,
+        "title": "Phase Transition Rate",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 36},
+        "targets": [
+          {
+            "expr": "sum(rate(zen_flow_jobflow_phase_transitions_total[5m])) by (phase)",
+            "legendFormat": "{{phase}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {
+            "format": "ops",
+            "label": "Transitions/sec"
+          },
+          {
+            "format": "short"
+          }
+        ]
+      },
+      {
+        "id": 15,
+        "title": "Step Phase Transitions",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 40},
+        "targets": [
+          {
+            "expr": "sum(rate(zen_flow_step_phase_transitions_total[5m])) by (phase)",
+            "legendFormat": "{{phase}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {
+            "format": "ops",
+            "label": "Transitions/sec"
+          },
+          {
+            "format": "short"
+          }
+        ]
       }
     ]
   }

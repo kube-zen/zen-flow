@@ -17,6 +17,7 @@ limitations under the License.
 package controller
 
 import (
+	"context"
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
@@ -185,7 +186,7 @@ func TestEventRecorder_Integration(t *testing.T) {
 	recorder.Event(obj, corev1.EventTypeNormal, "Reason3", "Message 3")
 
 	// Verify events were created (if fake client supports it)
-	events, err := kubeClient.CoreV1().Events("default").List(nil, metav1.ListOptions{})
+	events, err := kubeClient.CoreV1().Events("default").List(context.TODO(), metav1.ListOptions{})
 	if err == nil {
 		t.Logf("Created %d events", len(events.Items))
 	}

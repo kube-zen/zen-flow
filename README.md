@@ -15,6 +15,7 @@
 - **Security**: Pod Security Standards, RBAC, and audit logging
 - **Production-Ready**: Designed for enterprise-grade deployments
 - **Advanced Features**:
+  - **Manual Approval Steps**: Pause workflows and wait for human approval
   - **TTL Cleanup**: Automatic cleanup of completed JobFlows
   - **Step Retries**: Configurable retry policies with exponential/linear/fixed backoff
   - **Timeouts**: Step-level and flow-level timeout enforcement
@@ -126,8 +127,10 @@ spec:
     activeDeadlineSeconds: 21600
   steps:
     - name: step-name
+      type: Job  # Job (default) or Manual
       dependencies: []  # List of step names that must complete first
       continueOnFailure: false
+      message: "Approval message (for Manual type)"
       retryPolicy:
         limit: 3
         backoff:
@@ -136,7 +139,7 @@ spec:
           duration: "10s"
       timeoutSeconds: 3600
       template:
-        # Standard Kubernetes Job spec
+        # Standard Kubernetes Job spec (required for Job type, ignored for Manual)
         apiVersion: batch/v1
         kind: Job
         spec:

@@ -32,9 +32,9 @@ build-image:
 		--build-arg VERSION=$$VERSION \
 		--build-arg COMMIT=$$COMMIT \
 		--build-arg BUILD_DATE=$$BUILD_DATE \
-		-t kube-zen/zen-flow-controller:$$VERSION \
-		-t kube-zen/zen-flow-controller:latest .
-	@echo "✅ Docker image built: kube-zen/zen-flow-controller:$$VERSION"
+		-t kubezen/zen-flow-controller:$$VERSION \
+		-t kubezen/zen-flow-controller:latest .
+	@echo "✅ Docker image built: kubezen/zen-flow-controller:$$VERSION"
 
 # Build multi-arch Docker images (requires Docker Buildx)
 build-image-multiarch:
@@ -47,10 +47,10 @@ build-image-multiarch:
 		--build-arg VERSION=$$VERSION \
 		--build-arg COMMIT=$$COMMIT \
 		--build-arg BUILD_DATE=$$BUILD_DATE \
-		-t kube-zen/zen-flow-controller:$$VERSION \
-		-t kube-zen/zen-flow-controller:latest \
+		-t kubezen/zen-flow-controller:$$VERSION \
+		-t kubezen/zen-flow-controller:latest \
 		--push .
-	@echo "✅ Multi-arch Docker images built: kube-zen/zen-flow-controller:$$VERSION"
+	@echo "✅ Multi-arch Docker images built: kubezen/zen-flow-controller:$$VERSION"
 
 # Run all tests
 test: test-unit

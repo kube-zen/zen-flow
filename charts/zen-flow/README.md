@@ -57,7 +57,7 @@ The following table lists the configurable parameters and their default values:
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `replicaCount` | Number of controller replicas | `1` |
-| `image.repository` | Controller image repository | `kube-zen/zen-flow-controller` |
+| `image.repository` | Controller image repository | `kubezen/zen-flow-controller` |
 | `image.tag` | Controller image tag | `0.0.1-alpha` |
 | `image.pullPolicy` | Image pull policy | `IfNotPresent` |
 | `serviceAccount.create` | Create service account | `true` |

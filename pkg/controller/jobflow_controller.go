@@ -64,8 +64,8 @@ type JobFlowController struct {
 	pvcInformer     coreinformers.PersistentVolumeClaimInformer
 
 	// Work queues
-	jobFlowQueue workqueue.RateLimitingInterface
-	jobQueue     workqueue.RateLimitingInterface
+	jobFlowQueue workqueue.TypedRateLimitingInterface[string]
+	jobQueue     workqueue.TypedRateLimitingInterface[string]
 
 	// Status updater
 	statusUpdater *StatusUpdater
@@ -112,8 +112,8 @@ func NewJobFlowController(
 		jobFlowInformer:         jobFlowInformer,
 		jobInformer:             jobInformer,
 		pvcInformer:             pvcInformer,
-		jobFlowQueue:            workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "jobflows"),
-		jobQueue:                workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "jobs"),
+		jobFlowQueue:            workqueue.NewTypedRateLimitingQueue[string](workqueue.DefaultTypedControllerRateLimiter[string]()),
+		jobQueue:                workqueue.NewTypedRateLimitingQueue[string](workqueue.DefaultTypedControllerRateLimiter[string]()),
 		statusUpdater:           statusUpdater,
 		metricsRecorder:         metricsRecorder,
 		eventRecorder:           eventRecorder,
@@ -237,13 +237,11 @@ func (c *JobFlowController) runWorker(ctx context.Context) {
 
 // processNextJobFlow processes the next JobFlow from the queue.
 func (c *JobFlowController) processNextJobFlow(ctx context.Context) bool {
-	obj, shutdown := c.jobFlowQueue.Get()
+	key, shutdown := c.jobFlowQueue.Get()
 	if shutdown {
 		return false
 	}
-	defer c.jobFlowQueue.Done(obj)
-
-	key := obj.(string)
+	defer c.jobFlowQueue.Done(key)
 
 	// Add correlation ID for this reconciliation
 	correlationID := logging.GenerateCorrelationID()
@@ -259,7 +257,7 @@ func (c *JobFlowController) processNextJobFlow(ctx context.Context) bool {
 	}
 
 	c.metricsRecorder.RecordReconciliationDuration(time.Since(reconcileStart).Seconds())
-	c.jobFlowQueue.Forget(obj)
+	c.jobFlowQueue.Forget(key)
 	return true
 }
 
@@ -530,7 +528,7 @@ func (c *JobFlowController) refreshStepStatusFromJob(jobFlow *v1alpha1.JobFlow, 
 
 	// Update phase based on job conditions
 	oldPhase := stepStatus.Phase
-	newPhase := stepStatus.Phase
+	var newPhase string
 	
 	if job.Status.Succeeded > 0 {
 		newPhase = v1alpha1.StepPhaseSucceeded
@@ -742,7 +740,7 @@ func (c *JobFlowController) updateStepStatusFromJob(ctx context.Context, jobFlow
 	// Update phase based on job conditions
 	// P0.8: Track phase transitions properly
 	oldPhase := stepStatus.Phase
-	newPhase := stepStatus.Phase
+	var newPhase string
 	
 	if job.Status.Succeeded > 0 {
 		newPhase = v1alpha1.StepPhaseSucceeded
@@ -902,25 +900,6 @@ func (c *JobFlowController) updateJobFlowStatus(ctx context.Context, jobFlow *v1
 	return nil
 }
 
-// updateStatus is deprecated. Use updateJobFlowStatus instead.
-// This function is kept for backward compatibility but should not be used for new code.
-// P0.2: Validation failures should use updateJobFlowStatus to persist status.
-func (c *JobFlowController) updateStatus(jobFlow *v1alpha1.JobFlow, phase string, err error) error {
-	logger := logging.NewLogger().WithJobFlow(jobFlow.Namespace, jobFlow.Name)
-
-	jobFlow.Status.Phase = phase
-	if err != nil {
-		logger.WithError(err).Error("Updating JobFlow status with error")
-		jobFlow.Status.Conditions = append(jobFlow.Status.Conditions, v1alpha1.JobFlowCondition{
-			Type:               "Ready",
-			Status:             corev1.ConditionFalse,
-			LastTransitionTime: metav1.Now(),
-			Reason:             "Error",
-			Message:            err.Error(),
-		})
-	}
-	return err
-}
 
 // updateConditions updates JobFlow conditions.
 func (c *JobFlowController) updateConditions(jobFlow *v1alpha1.JobFlow) {

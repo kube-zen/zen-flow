@@ -24,7 +24,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: controller
-          image: kube-zen/zen-flow-controller:0.0.1-alpha
+          image: kubezen/zen-flow-controller:0.0.1-alpha
           imagePullPolicy: IfNotPresent
           securityContext:
             allowPrivilegeEscalation: false
@@ -34,13 +34,11 @@ spec:
           args:
             - --metrics-addr=:8080
             - --webhook-addr=:9443
-            - --webhook-cert-file=/etc/webhook/certs/tls.crt
-            - --webhook-key-file=/etc/webhook/certs/tls.key
             - --enable-leader-election=true
             - --leader-election-namespace=zen-flow-system
             - --enable-webhook=true
-            # P0.5: If webhook certs are not available, add --insecure-webhook=true
-            # For production, ensure zen-flow-webhook-cert secret exists with tls.crt and tls.key
+            - --insecure-webhook=true
+            # P0.5: For production, ensure zen-flow-webhook-cert secret exists with tls.crt and tls.key
           ports:
             - name: metrics
               containerPort: 8080
@@ -49,10 +47,10 @@ spec:
               containerPort: 9443
               protocol: TCP
           # P0.5: Webhook cert volume mount (optional if using --insecure-webhook=true)
-          volumeMounts:
-            - name: webhook-certs
-              mountPath: /etc/webhook/certs
-              readOnly: true
+          # volumeMounts:
+          #   - name: webhook-certs
+          #     mountPath: /etc/webhook/certs
+          #     readOnly: true
           livenessProbe:
             httpGet:
               path: /healthz
@@ -83,8 +81,8 @@ spec:
                   fieldPath: metadata.namespace
       # P0.5: Webhook cert volume (optional if using --insecure-webhook=true)
       # To generate certs: see docs/WEBHOOK_CERTS.md or use cert-manager
-      volumes:
-        - name: webhook-certs
-          secret:
-            secretName: zen-flow-webhook-cert
+      # volumes:
+      #   - name: webhook-certs
+      #     secret:
+      #       secretName: zen-flow-webhook-cert
 

@@ -1,0 +1,87 @@
+apiVersion: workflow.zen.io/v1alpha1
+kind: JobFlow
+metadata:
+  name: migration-with-approval
+  namespace: default
+spec:
+  steps:
+    - name: backup-db
+      type: Job
+      template:
+        apiVersion: batch/v1
+        kind: Job
+        spec:
+          template:
+            spec:
+              containers:
+                - name: backup
+                  image: postgres:15
+                  command:
+                    - /bin/bash
+                    - -c
+                    - |
+                      pg_dump -h $DB_HOST -U $DB_USER -d $DB_NAME > /backup/db-backup.sql
+                      echo "Backup completed successfully"
+                  env:
+                    - name: DB_HOST
+                      value: "postgres-service"
+                    - name: DB_USER
+                      valueFrom:
+                        secretKeyRef:
+                          name: db-credentials
+                          key: username
+                    - name: DB_NAME
+                      value: "production"
+                  volumeMounts:
+                    - name: backup-volume
+                      mountPath: /backup
+              volumes:
+                - name: backup-volume
+                  persistentVolumeClaim:
+                    claimName: backup-pvc
+              restartPolicy: OnFailure
+
+    - name: approve-migration
+      type: Manual
+      dependencies:
+        - backup-db
+      message: "Please verify backup before proceeding with schema migration"
+
+    - name: migrate-schema
+      type: Job
+      dependencies:
+        - approve-migration
+      template:
+        apiVersion: batch/v1
+        kind: Job
+        spec:
+          template:
+            spec:
+              containers:
+                - name: migrate
+                  image: postgres:15
+                  command:
+                    - /bin/bash
+                    - -c
+                    - |
+                      psql -h $DB_HOST -U $DB_USER -d $DB_NAME -f /migrations/schema.sql
+                      echo "Migration completed successfully"
+                  env:
+                    - name: DB_HOST
+                      value: "postgres-service"
+                    - name: DB_USER
+                      valueFrom:
+                        secretKeyRef:
+                          name: db-credentials
+                          key: username
+                    - name: DB_NAME
+                      value: "production"
+                  volumeMounts:
+                    - name: migrations
+                      mountPath: /migrations
+              volumes:
+                - name: migrations
+                  configMap:
+                    name: schema-migrations
+              restartPolicy: OnFailure
+
