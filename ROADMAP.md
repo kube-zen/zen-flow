@@ -14,19 +14,24 @@ All planned phases (Critical Infrastructure, Validation & Quality, Deployment & 
 ## 🚀 Future Enhancements
 
 ### Testing & Quality
+- ✅ **Completed**: Added comprehensive unit tests for error handling (`isRetryable`, `applyPodFailureAction`, `evaluateWhenCondition`)
+- ✅ **Completed**: Added tests for execution planning (`createExecutionPlan` with DAG, ContinueOnFailure, When conditions)
+- ✅ **Completed**: Added tests for status refresh logic (`refreshStepStatusFromJob`, `refreshStepStatuses`)
+- ✅ **Completed**: Test coverage improved from 64.4% to 68.8%
 - Enhance E2E test coverage with new features (TTL, retries, timeouts, concurrency, pod failure policies, when conditions, manual approval)
-- Add deterministic controller test harness using fake clients
 - Test full lifecycle: create JobFlow → reconcile → Job created → Job succeeds → step status updated → next steps start → flow completes
 - Add tests for edge cases (job deletion, job failure, etc.)
+- Target: Achieve 75%+ test coverage
 
 ### Feature Enhancements
-- Enhance artifact/parameter handling with actual storage/transfer (currently structure in place)
-- Enhance when condition evaluation with full template engine (currently basic support)
+- **In Progress**: Artifact/parameter handling structure in place (see [Limitations](README.md#limitations))
+- **In Progress**: When condition evaluation with basic support (see [Limitations](README.md#limitations))
+- Enhance artifact/parameter handling with actual storage/transfer (S3, GCS, HTTP endpoints)
+- Enhance when condition evaluation with full template engine (step status evaluation, expressions)
 - Performance optimizations for large-scale deployments
-- Additional artifact management options (S3, GCS, HTTP)
 - Multi-cluster support
 - Advanced workflow features (suspension/resumption, parameter substitution)
-- Additional observability integrations
+- Additional observability integrations (OpenTelemetry tracing)
 - Community-driven feature requests
 
 ## 📝 Notes
