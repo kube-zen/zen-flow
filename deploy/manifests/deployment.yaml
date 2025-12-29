@@ -37,8 +37,11 @@ spec:
             - --enable-leader-election=true
             - --leader-election-namespace=zen-flow-system
             - --enable-webhook=true
-            - --insecure-webhook=true
-            # P0.5: For production, ensure zen-flow-webhook-cert secret exists with tls.crt and tls.key
+            - --webhook-cert-file=/etc/webhook/certs/tls.crt
+            - --webhook-key-file=/etc/webhook/certs/tls.key
+            # For development/testing without cert-manager, use --insecure-webhook=true
+            # BUT: webhook configurations must be disabled (failurePolicy: Ignore) or webhooks disabled entirely
+            # Production: Use cert-manager to generate certificates (see deploy/webhook/certificate.yaml)
           ports:
             - name: metrics
               containerPort: 8080
@@ -46,11 +49,11 @@ spec:
             - name: webhook
               containerPort: 9443
               protocol: TCP
-          # P0.5: Webhook cert volume mount (optional if using --insecure-webhook=true)
-          # volumeMounts:
-          #   - name: webhook-certs
-          #     mountPath: /etc/webhook/certs
-          #     readOnly: true
+          # Webhook cert volume mount (required for TLS, managed by cert-manager)
+          volumeMounts:
+            - name: webhook-certs
+              mountPath: /etc/webhook/certs
+              readOnly: true
           livenessProbe:
             httpGet:
               path: /healthz
@@ -79,10 +82,9 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
-      # P0.5: Webhook cert volume (optional if using --insecure-webhook=true)
-      # To generate certs: see docs/WEBHOOK_CERTS.md or use cert-manager
-      # volumes:
-      #   - name: webhook-certs
-      #     secret:
-      #       secretName: zen-flow-webhook-cert
+      # Webhook cert volume (managed by cert-manager, see deploy/webhook/certificate.yaml)
+      volumes:
+        - name: webhook-certs
+          secret:
+            secretName: zen-flow-webhook-cert
 

@@ -12,6 +12,9 @@ metadata:
   name: zen-flow-validating-webhook
   labels:
     app: zen-flow-controller
+  annotations:
+    # Use cert-manager to inject CA bundle automatically
+    cert-manager.io/inject-ca-from: zen-flow-system/zen-flow-webhook-cert
 webhooks:
   - name: validate-jobflow.workflow.zen.io
     clientConfig:
@@ -27,10 +30,8 @@ webhooks:
     admissionReviewVersions: ["v1", "v1beta1"]
     sideEffects: None
     failurePolicy: Fail
-    # P0.6: caBundle must be set manually if not using cert-manager
-    # To get the CA certificate:
-    # kubectl get secret zen-flow-webhook-cert -n zen-flow-system -o jsonpath='{.data.ca\.crt}' | base64 -d
-    # caBundle: <base64-encoded-ca-certificate>
+    # caBundle is automatically injected by cert-manager via annotation above
+    # If not using cert-manager, manually set caBundle or use failurePolicy: Ignore
 
 ---
 apiVersion: admissionregistration.k8s.io/v1
@@ -39,6 +40,9 @@ metadata:
   name: zen-flow-mutating-webhook
   labels:
     app: zen-flow-controller
+  annotations:
+    # Use cert-manager to inject CA bundle automatically
+    cert-manager.io/inject-ca-from: zen-flow-system/zen-flow-webhook-cert
 webhooks:
   - name: mutate-jobflow.workflow.zen.io
     clientConfig:
@@ -54,8 +58,6 @@ webhooks:
     admissionReviewVersions: ["v1", "v1beta1"]
     sideEffects: None
     failurePolicy: Fail
-    # P0.6: caBundle must be set manually if not using cert-manager
-    # To get the CA certificate:
-    # kubectl get secret zen-flow-webhook-cert -n zen-flow-system -o jsonpath='{.data.ca\.crt}' | base64 -d
-    # caBundle: <base64-encoded-ca-certificate>
+    # caBundle is automatically injected by cert-manager via annotation above
+    # If not using cert-manager, manually set caBundle or use failurePolicy: Ignore
 

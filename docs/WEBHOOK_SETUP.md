@@ -23,7 +23,7 @@ zen-flow provides two types of admission webhooks:
 kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.13.0/cert-manager.yaml
 ```
 
-### 2. Deploy Webhook Manifests
+### 2. Deploy Certificate (cert-manager)
 
 ```bash
 # Deploy certificate issuer and certificate
@@ -31,12 +31,20 @@ kubectl apply -f deploy/webhook/certificate.yaml
 
 # Wait for certificate to be ready
 kubectl wait --for=condition=Ready certificate/zen-flow-webhook-cert -n zen-flow-system --timeout=60s
+```
 
-# Deploy webhook configurations
+### 3. Deploy Webhook Configurations
+
+```bash
+# Deploy webhook configurations (with cert-manager CA injection)
 kubectl apply -f deploy/manifests/webhook.yaml
 ```
 
-### 3. Verify Webhook Installation
+**Note**: The webhook configurations in `deploy/manifests/webhook.yaml` use cert-manager annotations to automatically inject the CA bundle. If you're not using cert-manager, you must either:
+- Manually set the `caBundle` field in the webhook configurations, or
+- Set `failurePolicy: Ignore` to allow requests even if webhook is unreachable
+
+### 4. Verify Webhook Installation
 
 ```bash
 # Check certificate
@@ -61,6 +69,10 @@ The webhook server supports the following command-line flags:
 - `--webhook-key-file`: Path to TLS private key file (default: `/etc/webhook/certs/tls.key`)
 - `--enable-webhook`: Enable webhook server (default: `true`)
 - `--insecure-webhook`: Allow webhook to start without TLS (testing only, NOT for production)
+  - **WARNING**: If using `--insecure-webhook=true`, you MUST either:
+    - Disable webhooks entirely (`--enable-webhook=false`), or
+    - Set `failurePolicy: Ignore` in webhook configurations
+  - Kubernetes admission webhooks require TLS. HTTP webhooks will fail TLS handshake and block resource creation.
 
 ### Certificate Management
 
@@ -91,16 +103,46 @@ The mutating webhook sets the following defaults:
    - `ttlSecondsAfterFinished`: `86400` (24 hours, if not specified)
    - `backoffLimit`: `6` (if not specified)
 
-## Testing
+## Development Setup
 
-### Test Webhook Locally (Without TLS)
+For development/testing without cert-manager, you have two options:
+
+### Option 1: Disable Webhooks (Recommended for Dev)
 
 ```bash
-# Start controller with insecure webhook
+# Deploy controller with webhooks disabled
+# Edit deploy/manifests/deployment.yaml and set:
+#   - --enable-webhook=false
+# Then deploy:
+kubectl apply -f deploy/manifests/deployment.yaml
+```
+
+### Option 2: Use Insecure Webhook with failurePolicy: Ignore
+
+**WARNING**: This is for local development only. Kubernetes admission webhooks require TLS.
+
+1. Deploy controller with `--insecure-webhook=true`
+2. Edit webhook configurations to set `failurePolicy: Ignore`:
+
+```bash
+# Edit deploy/manifests/webhook.yaml and change:
+# failurePolicy: Fail  ->  failurePolicy: Ignore
+kubectl apply -f deploy/manifests/webhook.yaml
+```
+
+**Note**: With `failurePolicy: Ignore`, webhook failures won't block resource creation, but validation/mutation won't work.
+
+## Testing
+
+### Test Webhook Locally (With TLS)
+
+```bash
+# Start controller with TLS (requires certificates)
 ./bin/zen-flow-controller \
-  --insecure-webhook=true \
   --enable-webhook=true \
-  --webhook-addr=:9443
+  --webhook-addr=:9443 \
+  --webhook-cert-file=/path/to/tls.crt \
+  --webhook-key-file=/path/to/tls.key
 ```
 
 ### Test Webhook Validation
