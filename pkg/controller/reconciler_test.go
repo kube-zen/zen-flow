@@ -1458,4 +1458,49 @@ func TestJobFlowReconciler_handleStepOutputs_NoOutputs(t *testing.T) {
 	}
 }
 
+func TestJobFlowReconciler_applyPodFailureAction(t *testing.T) {
+	reconciler, _, _ := setupReconcilerTest(t)
+
+	tests := []struct {
+		name     string
+		action   string
+		expected bool // true = fail step, false = don't fail
+	}{
+		{
+			name:     "Ignore action",
+			action:   "Ignore",
+			expected: false,
+		},
+		{
+			name:     "Count action",
+			action:   "Count",
+			expected: false,
+		},
+		{
+			name:     "FailJob action",
+			action:   "FailJob",
+			expected: true,
+		},
+		{
+			name:     "unknown action defaults to fail",
+			action:   "Unknown",
+			expected: true,
+		},
+		{
+			name:     "empty action defaults to fail",
+			action:   "",
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := reconciler.applyPodFailureAction(tt.action)
+			if result != tt.expected {
+				t.Errorf("applyPodFailureAction(%q) = %v, expected %v", tt.action, result, tt.expected)
+			}
+		})
+	}
+}
+
 
