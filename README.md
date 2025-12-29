@@ -61,7 +61,7 @@ helm install zen-flow ./charts/zen-flow --namespace zen-flow-system --create-nam
 kubectl get pods -n zen-flow-system
 
 # Check CRDs are installed
-kubectl get crd jobflows.workflow.zen.io
+kubectl get crd jobflows.workflow.kube-zen.io
 
 # Check controller logs
 kubectl logs -n zen-flow-system -l app.kubernetes.io/name=zen-flow
@@ -142,7 +142,7 @@ kubectl get certificate -n zen-flow-system
 helm uninstall zen-flow --namespace zen-flow-system
 
 # Clean up CRDs (optional - removes JobFlow CRD from cluster)
-kubectl delete crd jobflows.workflow.zen.io
+kubectl delete crd jobflows.workflow.kube-zen.io
 
 # Clean up namespace (optional)
 kubectl delete namespace zen-flow-system
@@ -209,7 +209,7 @@ zen-flow follows the standard Kubernetes controller pattern:
 ### JobFlow Spec
 
 ```yaml
-apiVersion: workflow.zen.io/v1alpha1
+apiVersion: workflow.kube-zen.io/v1alpha1
 kind: JobFlow
 metadata:
   name: example-flow
@@ -245,12 +245,12 @@ spec:
 ```yaml
 status:
   phase: Running  # Pending, Running, Succeeded, Failed, Suspended
-  startTime: "2025-01-15T10:00:00Z"
+  startTime: "2015-12-29T10:00:00Z"
   completionTime: null
   steps:
     - name: step-name
       phase: Running  # Pending, Running, Succeeded, Failed, Skipped
-      startTime: "2025-01-15T10:00:05Z"
+      startTime: "2015-12-29T10:00:05Z"
       jobRef:
         name: example-flow-step-name-abc123
   progress:
@@ -371,7 +371,6 @@ zen-flow/
 
 ### Phase 4: Stable (v1)
 - API stability guarantee
-- Migration tools
 - Production deployments validated
 - Performance at scale (1000+ concurrent flows)
 

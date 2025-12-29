@@ -28,7 +28,7 @@ metadata:
   labels:
     {{- include "zen-flow.labels" . | nindent 4 }}
 webhooks:
-  - name: validate-jobflow.workflow.zen.io
+  - name: validate-jobflow.workflow.kube-zen.io
     clientConfig:
       service:
         name: {{ include "zen-flow.fullname" . }}-webhook
@@ -39,7 +39,7 @@ webhooks:
       # caBundle: <base64-encoded-ca-certificate>
       {{- end }}
     rules:
-      - apiGroups: ["workflow.zen.io"]
+      - apiGroups: ["workflow.kube-zen.io"]
         apiVersions: ["v1alpha1"]
         operations: ["CREATE", "UPDATE"]
         resources: ["jobflows"]
@@ -58,7 +58,7 @@ metadata:
   labels:
     {{- include "zen-flow.labels" . | nindent 4 }}
 webhooks:
-  - name: mutate-jobflow.workflow.zen.io
+  - name: mutate-jobflow.workflow.kube-zen.io
     clientConfig:
       service:
         name: {{ include "zen-flow.fullname" . }}-webhook
@@ -69,7 +69,7 @@ webhooks:
       # caBundle: <base64-encoded-ca-certificate>
       {{- end }}
     rules:
-      - apiGroups: ["workflow.zen.io"]
+      - apiGroups: ["workflow.kube-zen.io"]
         apiVersions: ["v1alpha1"]
         operations: ["CREATE"]
         resources: ["jobflows"]

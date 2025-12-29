@@ -284,7 +284,7 @@ func TestJobFlowController_handleJobChange(t *testing.T) {
 	kubeClient := kubefake.NewSimpleClientset()
 
 	jobFlowGVR := schema.GroupVersionResource{
-		Group:    "workflow.zen.io",
+		Group:    "workflow.kube-zen.io",
 		Version:  "v1alpha1",
 		Resource: "jobflows",
 	}

@@ -17,25 +17,28 @@ The zen-flow controller requires permissions to:
 
 ```yaml
 - apiGroups:
-    - workflow.zen.io
+    - workflow.kube-zen.io
   resources:
     - jobflows
-    - jobflows/status
   verbs:
     - get
     - list
     - watch
-    - create
+    - delete
+- apiGroups:
+    - workflow.kube-zen.io
+  resources:
+    - jobflows/status
+  verbs:
+    - get
     - update
     - patch
-    - delete
 ```
 
 **Why Required:**
 - **get, list, watch**: Controller needs to discover and monitor JobFlows
-- **create, update, patch**: Controller updates JobFlow status
-- **delete**: Controller may delete JobFlows (cleanup scenarios)
-- **jobflows/status**: Controller updates JobFlow status
+- **delete**: Controller deletes JobFlows for TTL cleanup and concurrency policy Replace
+- **jobflows/status**: Controller updates JobFlow status subresource (read-only access to spec)
 
 ### 2. Job Permissions
 
@@ -49,16 +52,13 @@ The zen-flow controller requires permissions to:
     - list
     - watch
     - create
-    - update
-    - patch
     - delete
 ```
 
 **Why Required:**
 - **get, list, watch**: Controller monitors Job status
 - **create**: Controller creates Jobs from step templates
-- **update, patch**: Controller may update Job annotations/labels
-- **delete**: Controller cleans up Jobs after completion
+- **delete**: Controller deletes Jobs when steps timeout or for cleanup
 
 ### 3. PVC Permissions
 
@@ -72,14 +72,11 @@ The zen-flow controller requires permissions to:
     - list
     - watch
     - create
-    - update
-    - patch
-    - delete
 ```
 
 **Why Required:**
 - Controller creates PVCs from `resourceTemplates.volumeClaimTemplates`
-- Controller monitors PVC status
+- Controller monitors PVC status (read-only after creation)
 
 ### 4. ConfigMap Permissions
 
@@ -93,14 +90,11 @@ The zen-flow controller requires permissions to:
     - list
     - watch
     - create
-    - update
-    - patch
-    - delete
 ```
 
 **Why Required:**
 - Controller creates ConfigMaps from `resourceTemplates.configMapTemplates`
-- Controller monitors ConfigMap status
+- Controller monitors ConfigMap status (read-only after creation)
 
 ### 5. Event Permissions
 
@@ -156,7 +150,7 @@ metadata:
   name: zen-flow-controller
   namespace: tenant-namespace
 rules:
-- apiGroups: ["workflow.zen.io"]
+- apiGroups: ["workflow.kube-zen.io"]
   resources: ["jobflows"]
   verbs: ["*"]
 - apiGroups: ["batch"]

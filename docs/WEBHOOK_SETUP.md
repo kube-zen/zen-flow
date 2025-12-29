@@ -188,7 +188,7 @@ kubectl apply -f examples/simple-linear-flow.yaml
 
 # Try to create an invalid JobFlow (should be rejected)
 kubectl apply -f - <<EOF
-apiVersion: workflow.zen.io/v1alpha1
+apiVersion: workflow.kube-zen.io/v1alpha1
 kind: JobFlow
 metadata:
   name: invalid-flow
@@ -202,7 +202,7 @@ EOF
 ```bash
 # Create a JobFlow without ExecutionPolicy
 kubectl apply -f - <<EOF
-apiVersion: workflow.zen.io/v1alpha1
+apiVersion: workflow.kube-zen.io/v1alpha1
 kind: JobFlow
 metadata:
   name: test-mutation
@@ -239,7 +239,7 @@ kubectl get jobflow test-mutation -o yaml | grep -A 5 executionPolicy
 
 4. **Test webhook endpoint**:
    ```bash
-   kubectl port-forward -n zen-flow-system svc/zen-flow-controller 9443:9443
+   kubectl port-forward -n zen-flow-system svc/zen-flow-controller-metrics 9443:9443
    curl -k https://localhost:9443/healthz
    ```
 

@@ -50,7 +50,7 @@ func TestWebhookServer_handleValidate(t *testing.T) {
 				Request: &admissionv1.AdmissionRequest{
 					UID: "test-uid",
 					Kind: metav1.GroupVersionKind{
-						Group:   "workflow.zen.io",
+						Group:   "workflow.kube-zen.io",
 						Version: "v1alpha1",
 						Kind:    "JobFlow",
 					},
@@ -81,7 +81,7 @@ func TestWebhookServer_handleValidate(t *testing.T) {
 				Request: &admissionv1.AdmissionRequest{
 					UID: "test-uid-2",
 					Kind: metav1.GroupVersionKind{
-						Group:   "workflow.zen.io",
+						Group:   "workflow.kube-zen.io",
 						Version: "v1alpha1",
 						Kind:    "JobFlow",
 					},
@@ -104,7 +104,7 @@ func TestWebhookServer_handleValidate(t *testing.T) {
 				Request: &admissionv1.AdmissionRequest{
 					UID: "test-uid-3",
 					Kind: metav1.GroupVersionKind{
-						Group:   "workflow.zen.io",
+						Group:   "workflow.kube-zen.io",
 						Version: "v1alpha1",
 						Kind:    "JobFlow",
 					},
@@ -130,7 +130,7 @@ func TestWebhookServer_handleValidate(t *testing.T) {
 				Request: &admissionv1.AdmissionRequest{
 					UID: "test-uid-4",
 					Kind: metav1.GroupVersionKind{
-						Group:   "workflow.zen.io",
+						Group:   "workflow.kube-zen.io",
 						Version: "v1alpha1",
 						Kind:    "JobFlow",
 					},
@@ -201,7 +201,7 @@ func TestWebhookServer_handleMutate(t *testing.T) {
 				Request: &admissionv1.AdmissionRequest{
 					UID: "test-uid",
 					Kind: metav1.GroupVersionKind{
-						Group:   "workflow.zen.io",
+						Group:   "workflow.kube-zen.io",
 						Version: "v1alpha1",
 						Kind:    "JobFlow",
 					},
@@ -226,7 +226,7 @@ func TestWebhookServer_handleMutate(t *testing.T) {
 				Request: &admissionv1.AdmissionRequest{
 					UID: "test-uid-2",
 					Kind: metav1.GroupVersionKind{
-						Group:   "workflow.zen.io",
+						Group:   "workflow.kube-zen.io",
 						Version: "v1alpha1",
 						Kind:    "JobFlow",
 					},
@@ -254,7 +254,7 @@ func TestWebhookServer_handleMutate(t *testing.T) {
 				Request: &admissionv1.AdmissionRequest{
 					UID: "test-uid-3",
 					Kind: metav1.GroupVersionKind{
-						Group:   "workflow.zen.io",
+						Group:   "workflow.kube-zen.io",
 						Version: "v1alpha1",
 						Kind:    "JobFlow",
 					},
@@ -497,7 +497,7 @@ func TestWebhookServer_mutateJobFlow_UpdateOperation(t *testing.T) {
 
 func marshalJobFlow(t *testing.T, jobFlow *v1alpha1.JobFlow) []byte {
 	jobFlow.TypeMeta = metav1.TypeMeta{
-		APIVersion: "workflow.zen.io/v1alpha1",
+		APIVersion: "workflow.kube-zen.io/v1alpha1",
 		Kind:       "JobFlow",
 	}
 	raw, err := json.Marshal(jobFlow)

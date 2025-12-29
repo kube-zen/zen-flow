@@ -477,7 +477,7 @@ const (
 
 // Approval annotation constants
 const (
-	ApprovalAnnotationKey   = "workflow.zen.io/approved"
+	ApprovalAnnotationKey   = "workflow.kube-zen.io/approved"
 	ApprovalAnnotationValue = "true"
 )
 

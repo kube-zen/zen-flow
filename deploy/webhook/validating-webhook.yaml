@@ -31,14 +31,14 @@ metadata:
   annotations:
     cert-manager.io/inject-ca-from: zen-flow-system/zen-flow-webhook-cert
 webhooks:
-  - name: validate-jobflow.workflow.zen.io
+  - name: validate-jobflow.workflow.kube-zen.io
     clientConfig:
       service:
         name: zen-flow-webhook
         namespace: zen-flow-system
         path: "/validate-jobflow"
     rules:
-      - apiGroups: ["workflow.zen.io"]
+      - apiGroups: ["workflow.kube-zen.io"]
         apiVersions: ["v1alpha1"]
         operations: ["CREATE", "UPDATE"]
         resources: ["jobflows"]

@@ -48,7 +48,7 @@ func setupTestController(t *testing.T) (*controller.JobFlowController, *fake.Fak
 	kubeClient := kubefake.NewSimpleClientset()
 
 	jobFlowGVR := schema.GroupVersionResource{
-		Group:    "workflow.zen.io",
+		Group:    "workflow.kube-zen.io",
 		Version:  "v1alpha1",
 		Resource: "jobflows",
 	}
@@ -125,7 +125,7 @@ func TestJobFlowController_Integration_SimpleFlow(t *testing.T) {
 	unstructuredJobFlow.SetGroupVersionKind(v1alpha1.SchemeGroupVersion.WithKind("JobFlow"))
 
 	jobFlowGVR := schema.GroupVersionResource{
-		Group:    "workflow.zen.io",
+		Group:    "workflow.kube-zen.io",
 		Version:  "v1alpha1",
 		Resource: "jobflows",
 	}

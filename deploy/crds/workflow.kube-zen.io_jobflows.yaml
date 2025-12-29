@@ -1,11 +1,11 @@
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: jobflows.workflow.zen.io
+  name: jobflows.workflow.kube-zen.io
   annotations:
     "api-approved.kubernetes.io": "unapproved"
 spec:
-  group: workflow.zen.io
+  group: workflow.kube-zen.io
   versions:
     - name: v1alpha1
       served: true

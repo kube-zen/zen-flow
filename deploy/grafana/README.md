@@ -54,8 +54,10 @@ The dashboard includes the following panels:
 
 The dashboard uses the following Prometheus metrics:
 
-- `zen_flow_jobflows_total` - Total JobFlows by phase and namespace
-- `zen_flow_steps_total` - Total steps by flow and phase
+- `zen_flow_jobflows` - Current JobFlows by phase and namespace (gauge)
+- `zen_flow_steps` - Current steps by flow and phase (gauge)
+- `zen_flow_jobflow_phase_transitions_total` - Total JobFlow phase transitions (counter)
+- `zen_flow_step_phase_transitions_total` - Total step phase transitions (counter)
 - `zen_flow_step_duration_seconds` - Step execution duration histogram
 - `zen_flow_reconciliation_duration_seconds` - Reconciliation duration histogram
 

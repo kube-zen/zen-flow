@@ -35,8 +35,8 @@ spec:
           annotations:
             summary: "zen-flow Controller is down"
             description: "zen-flow Controller has been down for more than 5 minutes."
-        # Alert on high reconciliation error rate
-        - alert: ZenFlowHighReconciliationErrorRate
+        # Alert on high reconciliation rate
+        - alert: ZenFlowHighReconciliationRate
           expr: rate(zen_flow_reconciliation_duration_seconds_count[5m]) > 10
           for: 5m
           labels:
@@ -46,6 +46,7 @@ spec:
             summary: "High zen-flow reconciliation rate detected"
             description: >
               zen-flow Controller is experiencing {{ $value }} reconciliations per second.
+              This may indicate controller thrashing or high JobFlow activity.
         # Alert on step execution failures
         - alert: ZenFlowStepExecutionFailures
           expr: rate(zen_flow_step_phase_transitions_total{phase="Failed"}[5m]) > 5
@@ -57,17 +58,18 @@ spec:
             summary: "High step execution failure rate"
             description: >
               zen-flow Controller is failing to execute steps at a high rate.
-        # Alert on JobFlow stuck in Running state
+        # Alert on JobFlow stuck in Running state (no progress for 2+ hours)
         - alert: ZenFlowJobFlowStuck
           expr: zen_flow_jobflows{phase="Running"} > 0
-          for: 1h
+          for: 2h
           labels:
             severity: warning
             component: zen-flow-controller
           annotations:
             summary: "JobFlow stuck in Running state"
             description: >
-              JobFlow has been in Running state for more than 1 hour.
+              JobFlow has been in Running state for more than 2 hours.
+              This may indicate a stuck workflow or long-running process.
         # Alert on JobFlow stuck in Paused state (waiting for approval too long)
         - alert: ZenFlowJobFlowStuckWaitingApproval
           expr: zen_flow_jobflows{phase="Paused"} > 0
@@ -91,7 +93,7 @@ spec:
             summary: "Step waiting for manual approval"
             description: >
               Step has been waiting for manual approval for more than 12 hours.
-              Approve the step using: kubectl annotate jobflow <name> workflow.zen.io/approved/<step-name>=true
+              Approve the step using: kubectl annotate jobflow <name> workflow.kube-zen.io/approved/<step-name>=true
         # Alert on slow step execution
         - alert: ZenFlowSlowStepExecution
           expr: >
@@ -105,27 +107,18 @@ spec:
             summary: "Slow step execution detected"
             description: >
               95th percentile step execution duration is high ({{ $value }}s).
-        # Alert on high job creation failure rate
-        - alert: ZenFlowHighJobCreationFailureRate
-          expr: rate(zen_flow_step_phase_transitions_total{phase="Failed"}[5m]) > 2
-          for: 5m
+        # Alert on slow reconciliation (P95 duration)
+        - alert: ZenFlowSlowReconciliation
+          expr: >
+            histogram_quantile(0.95,
+            rate(zen_flow_reconciliation_duration_seconds_bucket[5m])) > 5
+          for: 10m
           labels:
             severity: warning
             component: zen-flow-controller
           annotations:
-            summary: "High step failure rate"
+            summary: "Slow reconciliation detected"
             description: >
-              zen-flow Controller is experiencing a high rate of step failures.
-        # Alert when no JobFlows are active (may indicate issues)
-        - alert: ZenFlowNoActiveJobFlows
-          expr: zen_flow_jobflows{phase="Running"} == 0 AND zen_flow_jobflows{phase="Pending"} == 0
-          for: 1h
-          labels:
-            severity: info
-            component: zen-flow-controller
-          annotations:
-            summary: "No active JobFlows"
-            description: >
-              No active JobFlows are configured or running.
-              This may be expected if JobFlows are not needed.
+              95th percentile reconciliation duration is high ({{ $value }}s).
+              This may indicate controller performance issues.
 

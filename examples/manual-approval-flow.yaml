@@ -1,4 +1,4 @@
-apiVersion: workflow.zen.io/v1alpha1
+apiVersion: workflow.kube-zen.io/v1alpha1
 kind: JobFlow
 metadata:
   name: migration-with-approval

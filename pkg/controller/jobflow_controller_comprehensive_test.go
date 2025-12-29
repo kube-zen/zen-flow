@@ -189,7 +189,7 @@ func TestJobFlowController_executeStep_CreateJob(t *testing.T) {
 	kubeClient := kubefake.NewSimpleClientset()
 
 	jobFlowGVR := schema.GroupVersionResource{
-		Group:    "workflow.zen.io",
+		Group:    "workflow.kube-zen.io",
 		Version:  "v1alpha1",
 		Resource: "jobflows",
 	}
@@ -286,7 +286,7 @@ func TestJobFlowController_executeStep_JobAlreadyExists(t *testing.T) {
 	kubeClient := kubefake.NewSimpleClientset()
 
 	jobFlowGVR := schema.GroupVersionResource{
-		Group:    "workflow.zen.io",
+		Group:    "workflow.kube-zen.io",
 		Version:  "v1alpha1",
 		Resource: "jobflows",
 	}
@@ -482,7 +482,7 @@ func TestJobFlowController_reconcileJobFlow_Initialize(t *testing.T) {
 	kubeClient := kubefake.NewSimpleClientset()
 
 	jobFlowGVR := schema.GroupVersionResource{
-		Group:    "workflow.zen.io",
+		Group:    "workflow.kube-zen.io",
 		Version:  "v1alpha1",
 		Resource: "jobflows",
 	}
@@ -546,7 +546,7 @@ func TestJobFlowController_reconcileJobFlow_InvalidObjectType(t *testing.T) {
 	kubeClient := kubefake.NewSimpleClientset()
 
 	jobFlowGVR := schema.GroupVersionResource{
-		Group:    "workflow.zen.io",
+		Group:    "workflow.kube-zen.io",
 		Version:  "v1alpha1",
 		Resource: "jobflows",
 	}
@@ -715,7 +715,7 @@ func TestJobFlowController_processNextJobFlow_Error(t *testing.T) {
 	kubeClient := kubefake.NewSimpleClientset()
 
 	jobFlowGVR := schema.GroupVersionResource{
-		Group:    "workflow.zen.io",
+		Group:    "workflow.kube-zen.io",
 		Version:  "v1alpha1",
 		Resource: "jobflows",
 	}
@@ -750,7 +750,7 @@ func TestJobFlowController_Start(t *testing.T) {
 	kubeClient := kubefake.NewSimpleClientset()
 
 	jobFlowGVR := schema.GroupVersionResource{
-		Group:    "workflow.zen.io",
+		Group:    "workflow.kube-zen.io",
 		Version:  "v1alpha1",
 		Resource: "jobflows",
 	}
@@ -938,7 +938,7 @@ func TestJobFlowController_reconcileJobFlow_GetStoreError(t *testing.T) {
 	// Create a mock informer that returns an error
 	// We'll use a real informer but with an invalid store operation
 	jobFlowGVR := schema.GroupVersionResource{
-		Group:    "workflow.zen.io",
+		Group:    "workflow.kube-zen.io",
 		Version:  "v1alpha1",
 		Resource: "jobflows",
 	}

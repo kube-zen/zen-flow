@@ -98,7 +98,7 @@ spec:
 ### Minimal Permissions
 
 The controller requires:
-- Full access to `jobflows.workflow.zen.io` CRD
+- Full access to `jobflows.workflow.kube-zen.io` CRD
 - Create/update/delete Jobs
 - Create/update/delete PVCs and ConfigMaps
 - Leader election permissions
@@ -116,7 +116,7 @@ metadata:
   name: zen-flow-controller
   namespace: tenant-namespace
 rules:
-- apiGroups: ["workflow.zen.io"]
+- apiGroups: ["workflow.kube-zen.io"]
   resources: ["jobflows"]
   verbs: ["*"]
 - apiGroups: ["batch"]
@@ -176,7 +176,7 @@ kind: Policy
 rules:
 - level: Metadata
   resources:
-  - group: workflow.zen.io
+  - group: workflow.kube-zen.io
     resources: ["jobflows"]
 - level: RequestResponse
   resources:

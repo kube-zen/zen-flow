@@ -1,3 +1,6 @@
+//go:build legacy
+// +build legacy
+
 /*
 Copyright 2025 Kube-ZEN Contributors
 

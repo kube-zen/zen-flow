@@ -41,7 +41,7 @@ func TestJobFlowController_SetMaxConcurrentReconciles(t *testing.T) {
 	kubeClient := kubefake.NewSimpleClientset()
 
 	jobFlowGVR := schema.GroupVersionResource{
-		Group:    "workflow.zen.io",
+		Group:    "workflow.kube-zen.io",
 		Version:  "v1alpha1",
 		Resource: "jobflows",
 	}
@@ -88,7 +88,7 @@ func TestJobFlowController_refreshStepStatuses(t *testing.T) {
 	kubeClient := kubefake.NewSimpleClientset()
 
 	jobFlowGVR := schema.GroupVersionResource{
-		Group:    "workflow.zen.io",
+		Group:    "workflow.kube-zen.io",
 		Version:  "v1alpha1",
 		Resource: "jobflows",
 	}
@@ -177,7 +177,7 @@ func TestJobFlowController_refreshStepStatuses_JobNotFound(t *testing.T) {
 	kubeClient := kubefake.NewSimpleClientset()
 
 	jobFlowGVR := schema.GroupVersionResource{
-		Group:    "workflow.zen.io",
+		Group:    "workflow.kube-zen.io",
 		Version:  "v1alpha1",
 		Resource: "jobflows",
 	}
@@ -250,7 +250,7 @@ func TestJobFlowController_refreshStepStatusFromJob(t *testing.T) {
 	kubeClient := kubefake.NewSimpleClientset()
 
 	jobFlowGVR := schema.GroupVersionResource{
-		Group:    "workflow.zen.io",
+		Group:    "workflow.kube-zen.io",
 		Version:  "v1alpha1",
 		Resource: "jobflows",
 	}
@@ -338,7 +338,7 @@ func TestJobFlowController_refreshStepStatuses_NoJobRef(t *testing.T) {
 	kubeClient := kubefake.NewSimpleClientset()
 
 	jobFlowGVR := schema.GroupVersionResource{
-		Group:    "workflow.zen.io",
+		Group:    "workflow.kube-zen.io",
 		Version:  "v1alpha1",
 		Resource: "jobflows",
 	}

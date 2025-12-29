@@ -71,7 +71,7 @@ func main() {
 
 		// Check if it's a JobFlow
 		apiVersion, ok := obj["apiVersion"].(string)
-		if !ok || apiVersion != "workflow.zen.io/v1alpha1" {
+		if !ok || apiVersion != "workflow.kube-zen.io/v1alpha1" {
 			return nil // Skip non-JobFlow files
 		}
 
