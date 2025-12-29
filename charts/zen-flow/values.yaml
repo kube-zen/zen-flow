@@ -51,12 +51,10 @@ resources:
 nodeSelector: {}
 tolerations: []
 affinity: {}
-
 # Leader election configuration
 leaderElection:
   enabled: true
   namespace: ""
-
 # Webhook configuration
 webhook:
   # Disabled by default for safe installation without prerequisites
@@ -76,7 +74,6 @@ webhook:
     issuer:
       name: ""
       kind: ClusterIssuer  # ClusterIssuer or Issuer
-
 # Metrics configuration
 metrics:
   enabled: true
@@ -86,35 +83,28 @@ metrics:
     interval: 30s
     scrapeTimeout: 10s
     labels: {}
-
 # Prometheus rules
 prometheus:
   rules:
     enabled: false
-
 # Grafana dashboard
 grafana:
   dashboard:
     enabled: false
-
 # CRD management
 crd:
   # Install CRDs as part of Helm install
   install: true
-
 # Namespace configuration
 namespace:
   create: true
   name: zen-flow-system
-
 # Additional environment variables
 env: []
 # - name: CUSTOM_VAR
 #   value: "custom-value"
-
 # Additional volume mounts
 extraVolumeMounts: []
-
 # Additional volumes
 extraVolumes: []
 
