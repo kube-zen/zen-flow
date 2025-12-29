@@ -1513,9 +1513,10 @@ func TestJobFlowReconciler_createExecutionPlan(t *testing.T) {
 	}
 
 	// Build DAG
-	dagGraph, sortedSteps, err := dag.BuildDAG(jobFlow.Spec.Steps)
+	dagGraph := dag.BuildDAG(jobFlow.Spec.Steps)
+	sortedSteps, err := dagGraph.TopologicalSort()
 	if err != nil {
-		t.Fatalf("Failed to build DAG: %v", err)
+		t.Fatalf("Failed to sort DAG: %v", err)
 	}
 
 	// Test createExecutionPlan
@@ -1559,9 +1560,10 @@ func TestJobFlowReconciler_createExecutionPlan_ContinueOnFailure(t *testing.T) {
 	}
 
 	// Build DAG
-	dagGraph, sortedSteps, err := dag.BuildDAG(jobFlow.Spec.Steps)
+	dagGraph := dag.BuildDAG(jobFlow.Spec.Steps)
+	sortedSteps, err := dagGraph.TopologicalSort()
 	if err != nil {
-		t.Fatalf("Failed to build DAG: %v", err)
+		t.Fatalf("Failed to sort DAG: %v", err)
 	}
 
 	// Test createExecutionPlan
@@ -1606,9 +1608,10 @@ func TestJobFlowReconciler_createExecutionPlan_WhenCondition(t *testing.T) {
 	}
 
 	// Build DAG
-	dagGraph, sortedSteps, err := dag.BuildDAG(jobFlow.Spec.Steps)
+	dagGraph := dag.BuildDAG(jobFlow.Spec.Steps)
+	sortedSteps, err := dagGraph.TopologicalSort()
 	if err != nil {
-		t.Fatalf("Failed to build DAG: %v", err)
+		t.Fatalf("Failed to sort DAG: %v", err)
 	}
 
 	// Test createExecutionPlan
