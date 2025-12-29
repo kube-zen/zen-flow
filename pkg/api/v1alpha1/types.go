@@ -451,11 +451,11 @@ type InitiatedBy struct {
 
 // Step phase constants
 const (
-	StepPhasePending       = "Pending"
-	StepPhaseRunning       = "Running"
-	StepPhaseSucceeded     = "Succeeded"
-	StepPhaseFailed        = "Failed"
-	StepPhaseSkipped       = "Skipped"
+	StepPhasePending         = "Pending"
+	StepPhaseRunning         = "Running"
+	StepPhaseSucceeded       = "Succeeded"
+	StepPhaseFailed          = "Failed"
+	StepPhaseSkipped         = "Skipped"
 	StepPhasePendingApproval = "PendingApproval"
 )
 

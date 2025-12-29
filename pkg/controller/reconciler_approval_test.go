@@ -43,14 +43,14 @@ func TestJobFlowReconciler_ManualApprovalStep(t *testing.T) {
 		Spec: v1alpha1.JobFlowSpec{
 			Steps: []v1alpha1.Step{
 				{
-					Name: "approve-step",
-					Type: v1alpha1.StepTypeManual,
+					Name:    "approve-step",
+					Type:    v1alpha1.StepTypeManual,
 					Message: "Please approve this step",
 				},
 			},
 		},
 		Status: v1alpha1.JobFlowStatus{
-			Phase: v1alpha1.JobFlowPhaseRunning,
+			Phase:     v1alpha1.JobFlowPhaseRunning,
 			StartTime: &metav1.Time{Time: time.Now()},
 			Progress: &v1alpha1.ProgressStatus{
 				TotalSteps: 1,
@@ -106,14 +106,14 @@ func TestJobFlowReconciler_ManualApprovalApproved(t *testing.T) {
 		Spec: v1alpha1.JobFlowSpec{
 			Steps: []v1alpha1.Step{
 				{
-					Name: "approve-step",
-					Type: v1alpha1.StepTypeManual,
+					Name:    "approve-step",
+					Type:    v1alpha1.StepTypeManual,
 					Message: "Please approve this step",
 				},
 			},
 		},
 		Status: v1alpha1.JobFlowStatus{
-			Phase: v1alpha1.JobFlowPhasePaused,
+			Phase:     v1alpha1.JobFlowPhasePaused,
 			StartTime: &metav1.Time{Time: time.Now()},
 			Progress: &v1alpha1.ProgressStatus{
 				TotalSteps: 1,
@@ -194,15 +194,15 @@ func TestJobFlowReconciler_ManualApprovalFlowPaused(t *testing.T) {
 					},
 				},
 				{
-					Name: "approve-step",
-					Type: v1alpha1.StepTypeManual,
+					Name:         "approve-step",
+					Type:         v1alpha1.StepTypeManual,
 					Dependencies: []string{"step1"},
-					Message: "Please approve",
+					Message:      "Please approve",
 				},
 			},
 		},
 		Status: v1alpha1.JobFlowStatus{
-			Phase: v1alpha1.JobFlowPhaseRunning,
+			Phase:     v1alpha1.JobFlowPhaseRunning,
 			StartTime: &metav1.Time{Time: time.Now()},
 			Progress: &v1alpha1.ProgressStatus{
 				TotalSteps: 2,
@@ -242,4 +242,3 @@ func TestJobFlowReconciler_ManualApprovalFlowPaused(t *testing.T) {
 		t.Error("JobFlow steps should still exist")
 	}
 }
-

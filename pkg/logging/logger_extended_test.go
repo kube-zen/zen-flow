@@ -179,4 +179,3 @@ func TestGetErrorType(t *testing.T) {
 		})
 	}
 }
-

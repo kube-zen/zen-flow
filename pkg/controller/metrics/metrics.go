@@ -95,7 +95,7 @@ type Recorder struct {
 func NewRecorder() *Recorder {
 	return &Recorder{
 		jobFlowPhases: make(map[string]map[string]string),
-		stepPhases:     make(map[string]map[string]string),
+		stepPhases:    make(map[string]map[string]string),
 	}
 }
 
@@ -104,7 +104,7 @@ func NewRecorder() *Recorder {
 func (r *Recorder) RecordJobFlowPhase(phase, namespace string) {
 	// Record transition (counter)
 	JobFlowPhaseTransitions.WithLabelValues(phase, namespace).Inc()
-	
+
 	// Update current state (gauge) - this should be called with full recomputation
 	// For now, we'll use Set() to track transitions
 	// In a full implementation, we'd recompute all gauges per reconcile
@@ -117,7 +117,7 @@ func (r *Recorder) RecomputeJobFlowMetrics(jobFlowsByPhase map[string]map[string
 	// Reset all gauges to zero first
 	// Note: We can't easily reset all label combinations, so we'll set known phases
 	phases := []string{"Pending", "Running", "Succeeded", "Failed", "Suspended", "Paused"}
-	
+
 	// Set gauges from current state snapshot
 	for namespace, phaseCounts := range jobFlowsByPhase {
 		for _, phase := range phases {
@@ -132,7 +132,7 @@ func (r *Recorder) RecomputeJobFlowMetrics(jobFlowsByPhase map[string]map[string
 func (r *Recorder) RecordJobFlowPhaseTransition(jobFlowName, namespace, oldPhase, newPhase string) {
 	// Record transition counter
 	JobFlowPhaseTransitions.WithLabelValues(newPhase, namespace).Inc()
-	
+
 	// Update gauges: decrement old phase, increment new phase
 	if oldPhase != "" {
 		JobFlowsCurrent.WithLabelValues(oldPhase, namespace).Dec()
@@ -155,7 +155,7 @@ func (r *Recorder) RecordReconciliationDuration(duration float64) {
 func (r *Recorder) RecordStepPhase(flow, phase string) {
 	// Record transition (counter)
 	StepPhaseTransitions.WithLabelValues(flow, phase).Inc()
-	
+
 	// Update current state (gauge)
 	StepsCurrent.WithLabelValues(flow, phase).Inc()
 }
@@ -165,7 +165,7 @@ func (r *Recorder) RecordStepPhase(flow, phase string) {
 func (r *Recorder) RecomputeStepMetrics(stepsByFlow map[string]map[string]int) {
 	// Set gauges from current state snapshot
 	phases := []string{"Pending", "Running", "Succeeded", "Failed", "Skipped", "PendingApproval"}
-	
+
 	for flow, phaseCounts := range stepsByFlow {
 		for _, phase := range phases {
 			count := phaseCounts[phase]
@@ -191,7 +191,7 @@ func (r *Recorder) RecordStepCurrentState(flow, phase string, count int) {
 func (r *Recorder) RecordStepPhaseTransition(flow, step, oldPhase, newPhase string) {
 	// Record transition counter
 	StepPhaseTransitions.WithLabelValues(flow, newPhase).Inc()
-	
+
 	// Update gauges: decrement old phase, increment new phase
 	if oldPhase != "" {
 		StepsCurrent.WithLabelValues(flow, oldPhase).Dec()

@@ -794,17 +794,17 @@ func (r *JobFlowReconciler) isRetryable(err error) bool {
 	if err == nil {
 		return false
 	}
-	
+
 	// Kubernetes API errors that are typically retryable
 	if k8serrors.IsConflict(err) || k8serrors.IsServerTimeout(err) {
 		return true
 	}
-	
+
 	// Network errors (connection refused, timeout, etc.)
 	if k8serrors.IsUnexpectedServerError(err) {
 		return true
 	}
-	
+
 	// Check for temporary network errors
 	errStr := err.Error()
 	temporaryErrors := []string{
@@ -820,7 +820,7 @@ func (r *JobFlowReconciler) isRetryable(err error) bool {
 			return true
 		}
 	}
-	
+
 	return false
 }
 
