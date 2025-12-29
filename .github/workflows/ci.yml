@@ -81,7 +81,8 @@ jobs:
       - name: Lint YAML files
         run: |
           # Allow document-start for multi-document YAML files (common in Kubernetes manifests)
-          yamllint -d '{extends: default, rules: {line-length: {max: 120}, document-start: {present: false, check-multi-document: false}, empty-lines: {max: 0, max-start: 0, max-end: 0}}}' \
+          # Note: document-start rule is disabled to allow --- separators in multi-doc files
+          yamllint -d '{extends: default, rules: {line-length: {max: 120}, document-start: disable, empty-lines: {max: 0, max-start: 0, max-end: 0}}}' \
             deploy/ examples/ charts/ || true
       
       - name: Lint Helm charts
