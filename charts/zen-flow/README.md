@@ -64,8 +64,9 @@ The following table lists the configurable parameters and their default values:
 | `serviceAccount.name` | Service account name | `""` |
 | `webhook.enabled` | Enable webhooks | `false` |
 | `webhook.certManager.enabled` | Use cert-manager for certificates | `false` |
-| `leaderElection.enabled` | Enable leader election | `true` |
-| `leaderElection.namespace` | Leader election namespace | `""` (uses release namespace) |
+| `ha.enabled` | Enable High Availability (sets replicas to 3, uses zen-lead) | `false` |
+| `leaderElection.enabled` | Enable leader election (deprecated: use `ha.enabled`) | `true` |
+| `leaderElection.namespace` | Leader election namespace (deprecated: use `ha.enabled`) | `""` (uses release namespace) |
 | `metrics.enabled` | Enable metrics | `true` |
 | `metrics.serviceMonitor.enabled` | Create ServiceMonitor for Prometheus | `false` |
 | `prometheus.rules.enabled` | Install Prometheus rules | `false` |
@@ -123,10 +124,12 @@ kubectl delete crd jobflows.workflow.kube-zen.io
 
 ### High Availability Deployment
 
+**⚠️ WARNING: Running with High Availability disabled (`ha.enabled=false`) is unsafe for production workloads due to risk of split-brain scenarios. If you disable HA but manually scale replicas > 1, you must implement your own locking mechanism.**
+
+**Production (HA Enabled - Recommended):**
 ```yaml
-replicaCount: 3
-leaderElection:
-  enabled: true
+ha:
+  enabled: true  # Uses zen-lead for leader election
 resources:
   requests:
     cpu: 200m
@@ -136,13 +139,14 @@ resources:
     memory: 512Mi
 ```
 
+**Note:** When `ha.enabled=true`, ensure zen-lead is installed and the zen-flow Service is annotated with `zen-lead.io/enabled: "true"`.
+
 ### Development Deployment
 
 ```yaml
-replicaCount: 1
+ha:
+  enabled: false  # Single replica, no leader election (dev/testing only)
 webhook:
-  enabled: false
-leaderElection:
   enabled: false
 resources:
   requests:

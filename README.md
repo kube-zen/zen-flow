@@ -180,6 +180,103 @@ helm upgrade zen-flow ./charts/zen-flow \
 
 See [Webhook Setup Guide](docs/WEBHOOK_SETUP.md) for detailed instructions.
 
+## High Availability
+
+zen-flow supports High Availability (HA) to ensure continuous operation and prevent split-brain scenarios during upgrades or failures.
+
+### Configuration
+
+High Availability is **disabled by default** (`ha.enabled=false`) for simple development and testing setups. This deploys a single replica without leader election.
+
+**⚠️ WARNING: Running with High Availability disabled (`ha.enabled=false`) is unsafe for production workloads due to risk of split-brain scenarios. If you disable HA but manually scale replicas > 1, you must implement your own locking mechanism.**
+
+### Enabling High Availability
+
+To enable HA for production deployments:
+
+```bash
+helm install zen-flow zen-flow/zen-flow \
+  --namespace zen-flow-system \
+  --create-namespace \
+  --set ha.enabled=true
+```
+
+This automatically:
+- Sets `replicas: 3` (instead of 1)
+- Enables leader election
+- Ensures only one replica processes reconciliation events
+
+### Leader Election with zen-lead (Recommended)
+
+When `ha.enabled=true`, zen-flow uses the external `zen-lead` controller for leader coordination. This is the recommended approach because it uses standard Kubernetes Services to route traffic—no code changes required.
+
+**Setup:**
+
+1. Install `zen-lead` controller (one-time, cluster-wide):
+```bash
+helm install zen-lead zen-lead/zen-lead --namespace zen-lead-system --create-namespace
+```
+
+2. Annotate the zen-flow Service to enable zen-lead:
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: zen-flow-controller
+  namespace: zen-flow-system
+  annotations:
+    zen-lead.io/enabled: "true"
+spec:
+  selector:
+    app: zen-flow-controller
+  ports:
+  - port: 8080
+    targetPort: 8080
+```
+
+3. Install zen-flow with HA enabled:
+```bash
+helm install zen-flow zen-flow/zen-flow \
+  --namespace zen-flow-system \
+  --create-namespace \
+  --set ha.enabled=true
+```
+
+**How it works:**
+- `zen-lead` watches the zen-flow Service and creates a `<service-name>-leader` selector-less Service
+- `zen-lead` creates an EndpointSlice pointing to exactly one Ready pod (the leader)
+- `zen-lead` annotates the leader pod: `zen-lead/role: leader`
+- zen-flow checks its own pod annotation to determine if it's the leader
+- Only the leader pod processes reconciliation events
+- On failure, `zen-lead` automatically selects a new leader and updates the EndpointSlice
+
+**Built-in Leader Election (Optional Fallback)**
+
+Built-in Kubernetes leader election via Lease API remains available in the codebase but is not the default. It can be enabled by setting `--enable-leader-election=true` and configuring the manager options, but zen-lead is the recommended approach.
+
+### Configuration Examples
+
+**Development (HA Disabled):**
+```yaml
+ha:
+  enabled: false  # Single replica, no leader election
+```
+
+**Production (HA Enabled with zen-lead):**
+```yaml
+ha:
+  enabled: true  # Uses zen-lead for leader election (recommended)
+```
+
+**Note:** When `ha.enabled=true`, you must also annotate the zen-flow Service with `zen-lead.io/enabled: "true"` for leader election to work.
+
+### Split-Brain Prevention
+
+When `ha.enabled=true`, zen-flow ensures only one replica processes reconciliation events:
+
+- **zen-lead mode**: External controller assigns leader role via pod annotations (`zen-lead/role: leader`)
+- **Disabled mode**: ⚠️ **No protection** - multiple replicas will all process events (split-brain risk)
+
 ### Alternative: kubectl Installation
 
 For environments without Helm:

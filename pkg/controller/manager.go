@@ -52,7 +52,11 @@ func SetupManager(options ctrl.Options) (ctrl.Manager, error) {
 // SetupController sets up the JobFlow controller with the manager.
 func SetupController(mgr ctrl.Manager, maxConcurrentReconciles int, metricsRecorder *metrics.Recorder, eventRecorder *EventRecorder) error {
 	reconciler := NewJobFlowReconciler(mgr, metricsRecorder, eventRecorder)
+	return SetupControllerWithReconciler(mgr, maxConcurrentReconciles, reconciler)
+}
 
+// SetupControllerWithReconciler sets up the JobFlow controller with a pre-configured reconciler.
+func SetupControllerWithReconciler(mgr ctrl.Manager, maxConcurrentReconciles int, reconciler *JobFlowReconciler) error {
 	// Setup controller with builder
 	builder := ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.JobFlow{}).

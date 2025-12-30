@@ -6,10 +6,10 @@ metadata:
   labels:
     {{- include "zen-flow.labels" . | nindent 4 }}
 spec:
-  {{- if not .Values.leaderElection.enabled }}
-  replicas: {{ .Values.replicaCount }}
+  {{- if .Values.ha.enabled }}
+  replicas: 3
   {{- else }}
-  replicas: {{ .Values.replicaCount }}
+  replicas: 1
   {{- end }}
   selector:
     matchLabels:
@@ -46,9 +46,8 @@ spec:
             {{- else }}
             - --enable-webhook=false
             {{- end }}
-            {{- if .Values.leaderElection.enabled }}
+            {{- if .Values.ha.enabled }}
             - --enable-leader-election=true
-            - --leader-election-namespace={{ include "zen-flow.leaderElectionNamespace" . }}
             {{- else }}
             - --enable-leader-election=false
             {{- end }}
@@ -122,4 +121,11 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-
+---
+# NOTES: High Availability Warning
+{{- if not .Values.ha.enabled }}
+# WARNING: Running with High Availability disabled (replicas=1). This is not recommended
+# for production workloads due to risk of split-brain during upgrades or failures.
+# Ensure you have an external leader election mechanism configured if running multiple
+# replicas manually.
+{{- end }}
