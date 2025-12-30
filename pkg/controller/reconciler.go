@@ -52,15 +52,30 @@ type JobFlowReconciler struct {
 	Scheme          *runtime.Scheme
 	MetricsRecorder *metrics.Recorder
 	EventRecorder   *EventRecorder
+	// shouldReconcile is a function that returns true if reconciliation should proceed
+	// Used for external leader election mode (zen-lead)
+	shouldReconcile func() bool
 }
 
-// NewJobFlowReconciler creates a new JobFlowReconciler
+// NewJobFlowReconciler creates a new JobFlowReconciler without leader check (for HA disabled mode)
 func NewJobFlowReconciler(mgr ctrl.Manager, metricsRecorder *metrics.Recorder, eventRecorder *EventRecorder) *JobFlowReconciler {
 	return &JobFlowReconciler{
 		Client:          mgr.GetClient(),
 		Scheme:          mgr.GetScheme(),
 		MetricsRecorder: metricsRecorder,
 		EventRecorder:   eventRecorder,
+		shouldReconcile: func() bool { return true }, // Always reconcile when HA disabled
+	}
+}
+
+// NewJobFlowReconcilerWithLeaderCheck creates a new JobFlowReconciler with leader check (for zen-lead mode)
+func NewJobFlowReconcilerWithLeaderCheck(mgr ctrl.Manager, metricsRecorder *metrics.Recorder, eventRecorder *EventRecorder, shouldReconcile func() bool) *JobFlowReconciler {
+	return &JobFlowReconciler{
+		Client:          mgr.GetClient(),
+		Scheme:          mgr.GetScheme(),
+		MetricsRecorder: metricsRecorder,
+		EventRecorder:   eventRecorder,
+		shouldReconcile: shouldReconcile,
 	}
 }
 
@@ -76,6 +91,12 @@ func (r *JobFlowReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	logger := log.FromContext(ctx)
 	logger = logger.WithValues("jobflow", req.NamespacedName)
 	ctx = log.IntoContext(ctx, logger)
+
+	// Check if this pod should reconcile (leader check for zen-lead mode)
+	if !r.shouldReconcile() {
+		reconcileLogger.V(4).Info("Skipping reconciliation - not the leader")
+		return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
+	}
 
 	// Add correlation ID for this reconciliation
 	correlationID := logging.GenerateCorrelationID()
