@@ -17,8 +17,6 @@ limitations under the License.
 package controller
 
 import (
-	"time"
-
 	batchv1 "k8s.io/api/batch/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
@@ -26,6 +24,7 @@ import (
 
 	"github.com/kube-zen/zen-flow/pkg/api/v1alpha1"
 	"github.com/kube-zen/zen-flow/pkg/controller/metrics"
+	"github.com/kube-zen/zen-sdk/pkg/leader"
 )
 
 // SetupManager creates and configures a controller-runtime manager.
@@ -70,18 +69,20 @@ func SetupController(mgr ctrl.Manager, maxConcurrentReconciles int, metricsRecor
 	return reconciler.SetupWithManager(builder)
 }
 
-// ManagerOptions returns default manager options.
+// ManagerOptions returns default manager options using zen-sdk.
 // Note: Metrics server is handled separately in main.go, not via manager Options.
 func ManagerOptions(namespace string, enableLeaderElection bool) ctrl.Options {
-	opts := ctrl.Options{
-		Scheme:                  nil, // Will be set by SetupManager
-		LeaderElection:          enableLeaderElection,
-		LeaderElectionID:        "zen-flow-controller-leader-election",
-		LeaderElectionNamespace: namespace,
-		LeaseDuration:           func() *time.Duration { d := 15 * time.Second; return &d }(),
-		RenewDeadline:           func() *time.Duration { d := 10 * time.Second; return &d }(),
-		RetryPeriod:             func() *time.Duration { d := 2 * time.Second; return &d }(),
+	baseOpts := ctrl.Options{
+		Scheme: nil, // Will be set by SetupManager
 	}
 
-	return opts
+	// Use zen-sdk for leader election configuration
+	leaderOpts := leader.Options{
+		LeaseName:  "zen-flow-controller-leader-election",
+		Enable:     enableLeaderElection,
+		Namespace:  namespace,
+		// Uses defaults: 15s lease, 10s renew, 2s retry
+	}
+
+	return leader.ManagerOptions(baseOpts, leaderOpts)
 }
