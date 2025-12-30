@@ -240,7 +240,7 @@ ha:
 
 When `ha.enabled=true`, zen-flow ensures only one replica processes reconciliation events:
 
-- **zen-lead mode**: External controller assigns leader role via pod annotations (`zen-lead/role: leader`)
+- **Built-in leader election**: Uses controller-runtime's Lease-based leader election (via zen-sdk/pkg/leader)
 - **Disabled mode**: ⚠️ **No protection** - multiple replicas will all process events (split-brain risk)
 
 ### Alternative: kubectl Installation
