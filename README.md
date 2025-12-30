@@ -206,49 +206,15 @@ This automatically:
 - Enables leader election
 - Ensures only one replica processes reconciliation events
 
-### Leader Election with zen-lead (Recommended)
+### Leader Election (Built-in)
 
-When `ha.enabled=true`, zen-flow uses the external `zen-lead` controller for leader coordination. This is the recommended approach because it uses standard Kubernetes Services to route traffic—no code changes required.
-
-**Setup:**
-
-1. Install `zen-lead` controller (one-time, cluster-wide):
-```bash
-helm install zen-lead zen-lead/zen-lead --namespace zen-lead-system --create-namespace
-```
-
-2. Annotate the zen-flow Service to enable zen-lead:
-```yaml
-apiVersion: v1
-kind: Service
-metadata:
-  name: zen-flow-controller
-  namespace: zen-flow-system
-  annotations:
-    zen-lead.io/enabled: "true"
-spec:
-  selector:
-    app: zen-flow-controller
-  ports:
-  - port: 8080
-    targetPort: 8080
-```
-
-3. Install zen-flow with HA enabled:
-```bash
-helm install zen-flow zen-flow/zen-flow \
-  --namespace zen-flow-system \
-  --create-namespace \
-  --set ha.enabled=true
-```
+When `ha.enabled=true`, zen-flow uses built-in leader election via `zen-sdk/pkg/leader` (controller-runtime Lease-based). This ensures only one replica processes reconciliation events, preventing split-brain scenarios.
 
 **How it works:**
-- `zen-lead` watches the zen-flow Service and creates a `<service-name>-leader` selector-less Service
-- `zen-lead` creates an EndpointSlice pointing to exactly one Ready pod (the leader)
-- `zen-lead` annotates the leader pod: `zen-lead/role: leader`
-- zen-flow checks its own pod annotation to determine if it's the leader
-- Only the leader pod processes reconciliation events
-- On failure, `zen-lead` automatically selects a new leader and updates the EndpointSlice
+- Controller-runtime Manager uses Kubernetes Lease API for leader election
+- Only the leader pod runs reconcilers
+- On leader failure, another pod automatically becomes leader
+- No pod mutation, no external dependencies—pure controller-runtime leader election
 
 **Built-in Leader Election (Optional Fallback)**
 
