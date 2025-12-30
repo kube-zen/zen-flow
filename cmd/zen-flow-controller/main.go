@@ -37,7 +37,6 @@ import (
 	"github.com/kube-zen/zen-flow/pkg/controller"
 	"github.com/kube-zen/zen-flow/pkg/controller/metrics"
 	"github.com/kube-zen/zen-flow/pkg/webhook"
-	"github.com/kube-zen/zen-sdk/pkg/leader"
 )
 
 const (
@@ -59,7 +58,7 @@ var (
 	webhookAddr             = flag.String("webhook-addr", ":9443", "The address the webhook endpoint binds to")
 	webhookCertFile         = flag.String("webhook-cert-file", "/etc/webhook/certs/tls.crt", "Path to TLS certificate file")
 	webhookKeyFile          = flag.String("webhook-key-file", "/etc/webhook/certs/tls.key", "Path to TLS private key file")
-	enableLeaderElection    = flag.Bool("enable-leader-election", false, "Enable leader election for HA (uses zen-lead when enabled)")
+	enableLeaderElection    = flag.Bool("enable-leader-election", false, "Enable built-in leader election for HA (via zen-sdk/pkg/leader)")
 	leaderElectionNS        = flag.String("leader-election-namespace", "", "Namespace for leader election lease (defaults to POD_NAMESPACE)")
 	enableWebhook           = flag.Bool("enable-webhook", true, "Enable validating webhook server")
 	insecureWebhook         = flag.Bool("insecure-webhook", false, "Allow webhook to start without TLS (testing only, not recommended for production)")
@@ -89,23 +88,10 @@ func main() {
 		}
 	}
 
-	// Configure leader election: when enabled, use zen-lead (recommended)
-	var externalWatcher *leader.Watcher
-	var shouldReconcile func() bool = func() bool { return true }
-
-	if *enableLeaderElection {
-		// Use zen-lead for leader election (recommended)
-		shouldReconcile = func() bool {
-			if externalWatcher == nil {
-				return false // Not initialized yet
-			}
-			return externalWatcher.GetIsLeader()
-		}
-		klog.Infof("Starting with zen-lead leader election. Waiting for leader role...")
-	} else {
-		// HA disabled - always reconcile (accept split-brain risk)
-		shouldReconcile = func() bool { return true }
-		klog.Warningf("Running with HA disabled. Accepting split-brain risk. Not recommended for production.")
+	// Configure leader election: when enabled, use built-in leader election (zen-sdk/pkg/leader)
+	// When disabled, zen-lead can handle leader routing at network level (zero code changes)
+	if !*enableLeaderElection {
+		klog.Warningf("Running with built-in leader election disabled. If using zen-lead, configure Service annotation. Otherwise accepting split-brain risk.")
 	}
 
 	// Create metrics recorder
@@ -126,42 +112,15 @@ func main() {
 	// Create event recorder
 	eventRecorder := controller.NewEventRecorder(kubeClient)
 
-	// Setup controller-runtime manager (disable built-in leader election, use zen-lead instead)
-	managerOptions := controller.ManagerOptions(namespace, false)
+	// Setup controller-runtime manager with built-in leader election (zen-sdk/pkg/leader)
+	managerOptions := controller.ManagerOptions(namespace, *enableLeaderElection)
 	mgr, err := controller.SetupManager(managerOptions)
 	if err != nil {
 		klog.Fatalf("Error setting up manager: %v", err)
 	}
 
-	// Setup external watcher for zen-lead (must be done after manager is created)
-	if *enableLeaderElection {
-		watcher, err := leader.NewWatcher(mgr.GetClient(), func(isLeader bool) {
-			if isLeader {
-				klog.Infof("Elected as leader via zen-lead. Starting reconciliation...")
-			} else {
-				klog.Infof("Lost leadership via zen-lead. Pausing reconciliation...")
-			}
-		})
-		if err != nil {
-			klog.Fatalf("Error creating external leader watcher: %v", err)
-		}
-		externalWatcher = watcher
-
-		// Start watching in background
-		go func() {
-			if err := watcher.Watch(ctx); err != nil && err != context.Canceled {
-				klog.Errorf("Error watching leader status: %v", err)
-			}
-		}()
-	}
-
-	// Setup controller with manager (use leader check when HA is enabled)
-	var reconciler *controller.JobFlowReconciler
-	if *enableLeaderElection {
-		reconciler = controller.NewJobFlowReconcilerWithLeaderCheck(mgr, metricsRecorder, eventRecorder, shouldReconcile)
-	} else {
-		reconciler = controller.NewJobFlowReconciler(mgr, metricsRecorder, eventRecorder)
-	}
+	// Setup controller with manager (no leader check needed - Manager handles it)
+	reconciler := controller.NewJobFlowReconciler(mgr, metricsRecorder, eventRecorder)
 	if err := controller.SetupControllerWithReconciler(mgr, *maxConcurrentReconciles, reconciler); err != nil {
 		klog.Fatalf("Error setting up controller: %v", err)
 	}

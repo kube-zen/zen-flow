@@ -48,8 +48,6 @@ spec:
             {{- end }}
             {{- if .Values.ha.enabled }}
             - --enable-leader-election=true
-            {{- else }}
-            - --enable-leader-election=false
             {{- end }}
             {{- if .Values.controller.maxConcurrentReconciles }}
             - --max-concurrent-reconciles={{ .Values.controller.maxConcurrentReconciles }}
