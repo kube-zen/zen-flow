@@ -74,6 +74,7 @@ var (
 	webhookCertFile         = flag.String("webhook-cert-file", "/etc/webhook/certs/tls.crt", "Path to TLS certificate file")
 	webhookKeyFile          = flag.String("webhook-key-file", "/etc/webhook/certs/tls.key", "Path to TLS private key file")
 	leaderElectionID        = flag.String("leader-election-id", "zen-flow-controller-leader-election", "The ID for leader election. Must be unique per controller instance in the same namespace.")
+	enableLeaderElection    = flag.Bool("enable-leader-election", true, "Enable leader election for controller HA (default: true). Set to false if you don't want HA or want zen-lead to handle HA instead.")
 	enableWebhook           = flag.Bool("enable-webhook", true, "Enable validating webhook server")
 	insecureWebhook         = flag.Bool("insecure-webhook", false, "Allow webhook to start without TLS (testing only, not recommended for production)")
 	maxConcurrentReconciles = flag.Int("max-concurrent-reconciles", 10, "Maximum number of concurrent reconciles")
@@ -88,10 +89,20 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
-	// Get namespace for leader election (required, hard-fail if missing)
-	namespace, err := leader.RequirePodNamespace()
-	if err != nil {
-		klog.Fatalf("Failed to determine pod namespace for leader election: %v", err)
+	// Get namespace for leader election (required if enabled)
+	var namespace string
+	if *enableLeaderElection {
+		var err error
+		namespace, err = leader.RequirePodNamespace()
+		if err != nil {
+			klog.Fatalf("Failed to determine pod namespace for leader election: %v", err)
+		}
+	} else {
+		// Still try to get namespace for other purposes, but don't fail if missing
+		namespace, _ = leader.RequirePodNamespace()
+		if namespace == "" {
+			namespace = "default" // Fallback
+		}
 	}
 
 	// Build config for Kubernetes client (needed for event recorder)
@@ -115,7 +126,7 @@ func main() {
 	// Create event recorder
 	eventRecorder := controller.NewEventRecorder(kubeClient)
 
-	// Setup controller-runtime manager with mandatory leader election
+	// Setup controller-runtime manager
 	mgrOpts := ctrl.Options{
 		Scheme: scheme,
 		Metrics: metricsserver.Options{
@@ -124,8 +135,13 @@ func main() {
 		HealthProbeBindAddress: ":8081",
 	}
 
-	// Apply mandatory leader election (always enabled for HA safety)
-	leader.ApplyRequiredLeaderElection(&mgrOpts, "zen-flow-controller", namespace, *leaderElectionID)
+	// Apply leader election (enabled by default, but can be disabled via --enable-leader-election=false)
+	leader.ApplyLeaderElection(&mgrOpts, "zen-flow-controller", namespace, *leaderElectionID, *enableLeaderElection)
+	if *enableLeaderElection {
+		klog.Info("Leader election enabled for controller HA")
+	} else {
+		klog.Warning("Leader election disabled - running without HA (split-brain risk if multiple replicas)")
+	}
 
 	mgr, err := ctrl.NewManager(cfg, mgrOpts)
 	if err != nil {
