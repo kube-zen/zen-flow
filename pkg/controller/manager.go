@@ -73,20 +73,6 @@ func SetupControllerWithReconciler(mgr ctrl.Manager, maxConcurrentReconciles int
 	return reconciler.SetupWithManager(builder)
 }
 
-// ManagerOptions returns default manager options using zen-sdk.
-// Note: Metrics server is handled separately in main.go, not via manager Options.
-func ManagerOptions(namespace string, enableLeaderElection bool) ctrl.Options {
-	baseOpts := ctrl.Options{
-		Scheme: nil, // Will be set by SetupManager
-	}
-
-	// Use zen-sdk for leader election configuration
-	leaderOpts := leader.Options{
-		LeaseName:  "zen-flow-controller-leader-election",
-		Enable:     enableLeaderElection,
-		Namespace:  namespace,
-		// Uses defaults: 15s lease, 10s renew, 2s retry
-	}
-
-	return leader.ManagerOptions(baseOpts, leaderOpts)
-}
+// ManagerOptions is deprecated. Use leader.ApplyRequiredLeaderElection() directly in main.go instead.
+// This function is kept for backward compatibility but should not be used in new code.
+// DEPRECATED: Use leader.ApplyRequiredLeaderElection() for mandatory leader election.

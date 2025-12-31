@@ -30,19 +30,19 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/kubernetes"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
-	"github.com/kube-zen/zen-sdk/pkg/leader"
 	flowv1alpha1 "github.com/kube-zen/zen-flow/pkg/api/v1alpha1"
 	"github.com/kube-zen/zen-flow/pkg/controller"
 	"github.com/kube-zen/zen-flow/pkg/controller/metrics"
 	"github.com/kube-zen/zen-flow/pkg/webhook"
+	"github.com/kube-zen/zen-sdk/pkg/leader"
 )
 
 var (
