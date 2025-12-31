@@ -398,3 +398,9 @@ helm-install:
 helm-all: helm-lint helm-test helm-package
 	@echo "✅ All Helm operations completed"
 
+
+check:
+	@scripts/ci/check.sh
+
+test-race:
+	@go test -v -race -timeout=15m ./...
