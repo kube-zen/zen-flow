@@ -172,7 +172,7 @@ func safeKlogLevel(level int) klog.Level {
 	} else if level > 10 {
 		level = 10
 	}
-	return klog.Level(level)
+	return klog.Level(int32(level)) // #nosec G115 -- level is bounded [0,10]
 }
 
 // Info logs at the specified verbosity level.
