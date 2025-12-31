@@ -28,16 +28,31 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"k8s.io/apimachinery/pkg/runtime"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
+	"github.com/kube-zen/zen-sdk/pkg/leader"
+	flowv1alpha1 "github.com/kube-zen/zen-flow/pkg/api/v1alpha1"
 	"github.com/kube-zen/zen-flow/pkg/controller"
 	"github.com/kube-zen/zen-flow/pkg/controller/metrics"
 	"github.com/kube-zen/zen-flow/pkg/webhook"
 )
+
+var (
+	scheme = runtime.NewScheme()
+)
+
+func init() {
+	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
+	utilruntime.Must(flowv1alpha1.AddToScheme(scheme))
+}
 
 const (
 	// DefaultShutdownTimeout is the default timeout for graceful shutdown.
@@ -58,8 +73,7 @@ var (
 	webhookAddr             = flag.String("webhook-addr", ":9443", "The address the webhook endpoint binds to")
 	webhookCertFile         = flag.String("webhook-cert-file", "/etc/webhook/certs/tls.crt", "Path to TLS certificate file")
 	webhookKeyFile          = flag.String("webhook-key-file", "/etc/webhook/certs/tls.key", "Path to TLS private key file")
-	enableLeaderElection    = flag.Bool("enable-leader-election", false, "Enable built-in leader election for HA (via zen-sdk/pkg/leader)")
-	leaderElectionNS        = flag.String("leader-election-namespace", "", "Namespace for leader election lease (defaults to POD_NAMESPACE)")
+	leaderElectionID        = flag.String("leader-election-id", "zen-flow-controller-leader-election", "The ID for leader election. Must be unique per controller instance in the same namespace.")
 	enableWebhook           = flag.Bool("enable-webhook", true, "Enable validating webhook server")
 	insecureWebhook         = flag.Bool("insecure-webhook", false, "Allow webhook to start without TLS (testing only, not recommended for production)")
 	maxConcurrentReconciles = flag.Int("max-concurrent-reconciles", 10, "Maximum number of concurrent reconciles")
@@ -74,28 +88,11 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
-	// Get namespace for leader election
-	namespace := *leaderElectionNS
-	if namespace == "" {
-		namespace = os.Getenv("POD_NAMESPACE")
-		if namespace == "" {
-			// Try to read from service account namespace file
-			if ns, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace"); err == nil {
-				namespace = string(ns)
-			} else {
-				namespace = "zen-flow-system"
-			}
-		}
+	// Get namespace for leader election (required, hard-fail if missing)
+	namespace, err := leader.RequirePodNamespace()
+	if err != nil {
+		klog.Fatalf("Failed to determine pod namespace for leader election: %v", err)
 	}
-
-	// Configure leader election: when enabled, use built-in leader election (zen-sdk/pkg/leader)
-	// When disabled, zen-lead can handle leader routing at network level (zero code changes)
-	if !*enableLeaderElection {
-		klog.Warningf("Running with built-in leader election disabled. If using zen-lead, configure Service annotation. Otherwise accepting split-brain risk.")
-	}
-
-	// Create metrics recorder
-	metricsRecorder := metrics.NewRecorder()
 
 	// Build config for Kubernetes client (needed for event recorder)
 	cfg, err := buildConfig(*masterURL, *kubeconfig)
@@ -103,18 +100,34 @@ func main() {
 		klog.Fatalf("Error building kubeconfig: %v", err)
 	}
 
+	// Apply REST config defaults (via zen-sdk helper)
+	leader.ApplyRestConfigDefaults(cfg)
+
 	// Create Kubernetes client for event recorder
 	kubeClient, err := kubernetes.NewForConfig(cfg)
 	if err != nil {
 		klog.Fatalf("Error building Kubernetes client: %v", err)
 	}
 
+	// Create metrics recorder
+	metricsRecorder := metrics.NewRecorder()
+
 	// Create event recorder
 	eventRecorder := controller.NewEventRecorder(kubeClient)
 
-	// Setup controller-runtime manager with built-in leader election (zen-sdk/pkg/leader)
-	managerOptions := controller.ManagerOptions(namespace, *enableLeaderElection)
-	mgr, err := controller.SetupManager(managerOptions)
+	// Setup controller-runtime manager with mandatory leader election
+	mgrOpts := ctrl.Options{
+		Scheme: scheme,
+		Metrics: metricsserver.Options{
+			BindAddress: *metricsAddr,
+		},
+		HealthProbeBindAddress: ":8081",
+	}
+
+	// Apply mandatory leader election (always enabled for HA safety)
+	leader.ApplyRequiredLeaderElection(&mgrOpts, "zen-flow-controller", namespace, *leaderElectionID)
+
+	mgr, err := ctrl.NewManager(cfg, mgrOpts)
 	if err != nil {
 		klog.Fatalf("Error setting up manager: %v", err)
 	}
