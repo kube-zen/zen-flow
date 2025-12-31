@@ -4,7 +4,7 @@ go 1.24
 
 require (
 	github.com/go-logr/logr v1.4.2
-	github.com/kube-zen/zen-sdk v0.0.0-20251231020410-f6e4bc8c2fc3
+	github.com/kube-zen/zen-sdk v0.1.0-alpha
 	github.com/prometheus/client_golang v1.19.1
 	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/api v0.31.0
