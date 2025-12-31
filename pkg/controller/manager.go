@@ -24,7 +24,6 @@ import (
 
 	"github.com/kube-zen/zen-flow/pkg/api/v1alpha1"
 	"github.com/kube-zen/zen-flow/pkg/controller/metrics"
-	"github.com/kube-zen/zen-sdk/pkg/leader"
 )
 
 // SetupManager creates and configures a controller-runtime manager.

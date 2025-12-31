@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -43,6 +44,7 @@ import (
 	"github.com/kube-zen/zen-flow/pkg/controller/metrics"
 	"github.com/kube-zen/zen-flow/pkg/webhook"
 	"github.com/kube-zen/zen-sdk/pkg/leader"
+	"github.com/kube-zen/zen-sdk/pkg/zenlead"
 )
 
 var (
@@ -73,8 +75,9 @@ var (
 	webhookAddr             = flag.String("webhook-addr", ":9443", "The address the webhook endpoint binds to")
 	webhookCertFile         = flag.String("webhook-cert-file", "/etc/webhook/certs/tls.crt", "Path to TLS certificate file")
 	webhookKeyFile          = flag.String("webhook-key-file", "/etc/webhook/certs/tls.key", "Path to TLS private key file")
-	leaderElectionID        = flag.String("leader-election-id", "zen-flow-controller-leader-election", "The ID for leader election. Must be unique per controller instance in the same namespace.")
-	enableLeaderElection    = flag.Bool("enable-leader-election", true, "Enable leader election for controller HA (default: true). Set to false if you don't want HA or want zen-lead to handle HA instead.")
+	leaderElectionMode      = flag.String("leader-election-mode", "builtin", "Leader election mode: builtin (default), zenlead, or disabled")
+	leaderElectionID        = flag.String("leader-election-id", "", "The ID for leader election (default: zen-flow-controller-leader-election). Required for builtin mode.")
+	leaderElectionLeaseName = flag.String("leader-election-lease-name", "", "The LeaderGroup CRD name (required for zenlead mode)")
 	enableWebhook           = flag.Bool("enable-webhook", true, "Enable validating webhook server")
 	insecureWebhook         = flag.Bool("insecure-webhook", false, "Allow webhook to start without TLS (testing only, not recommended for production)")
 	maxConcurrentReconciles = flag.Int("max-concurrent-reconciles", 10, "Maximum number of concurrent reconciles")
@@ -89,22 +92,6 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
-	// Get namespace for leader election (required if enabled)
-	var namespace string
-	if *enableLeaderElection {
-		var err error
-		namespace, err = leader.RequirePodNamespace()
-		if err != nil {
-			klog.Fatalf("Failed to determine pod namespace for leader election: %v", err)
-		}
-	} else {
-		// Still try to get namespace for other purposes, but don't fail if missing
-		namespace, _ = leader.RequirePodNamespace()
-		if namespace == "" {
-			namespace = "default" // Fallback
-		}
-	}
-
 	// Build config for Kubernetes client (needed for event recorder)
 	cfg, err := buildConfig(*masterURL, *kubeconfig)
 	if err != nil {
@@ -112,7 +99,7 @@ func main() {
 	}
 
 	// Apply REST config defaults (via zen-sdk helper)
-	leader.ApplyRestConfigDefaults(cfg)
+	zenlead.ControllerRuntimeDefaults(cfg)
 
 	// Create Kubernetes client for event recorder
 	kubeClient, err := kubernetes.NewForConfig(cfg)
@@ -127,7 +114,7 @@ func main() {
 	eventRecorder := controller.NewEventRecorder(kubeClient)
 
 	// Setup controller-runtime manager
-	mgrOpts := ctrl.Options{
+	baseOpts := ctrl.Options{
 		Scheme: scheme,
 		Metrics: metricsserver.Options{
 			BindAddress: *metricsAddr,
@@ -135,12 +122,64 @@ func main() {
 		HealthProbeBindAddress: ":8081",
 	}
 
-	// Apply leader election (enabled by default, but can be disabled via --enable-leader-election=false)
-	leader.ApplyLeaderElection(&mgrOpts, "zen-flow-controller", namespace, *leaderElectionID, *enableLeaderElection)
-	if *enableLeaderElection {
-		klog.Info("Leader election enabled for controller HA")
-	} else {
-		klog.Warning("Leader election disabled - running without HA (split-brain risk if multiple replicas)")
+	// Configure leader election using zenlead package (Profiles B/C)
+	var leConfig zenlead.LeaderElectionConfig
+	namespace, err := leader.RequirePodNamespace()
+	if err != nil {
+		klog.Fatalf("Failed to determine pod namespace: %v", err)
+	}
+
+	// Determine election ID (default if not provided)
+	electionID := *leaderElectionID
+	if electionID == "" {
+		electionID = "zen-flow-controller-leader-election"
+	}
+
+	// Configure based on mode
+	switch *leaderElectionMode {
+	case "builtin":
+		leConfig = zenlead.LeaderElectionConfig{
+			Mode:       zenlead.BuiltIn,
+			ElectionID: electionID,
+			Namespace:  namespace,
+		}
+		klog.Info("Leader election mode: builtin (Profile B)")
+	case "zenlead":
+		if *leaderElectionLeaseName == "" {
+			klog.Fatalf("--leader-election-lease-name is required when --leader-election-mode=zenlead")
+		}
+		leConfig = zenlead.LeaderElectionConfig{
+			Mode:       zenlead.ZenLeadManaged,
+			LeaseName:  *leaderElectionLeaseName,
+			Namespace:  namespace,
+		}
+		klog.Info("Leader election mode: zenlead managed (Profile C)", "leaseName", *leaderElectionLeaseName)
+	case "disabled":
+		leConfig = zenlead.LeaderElectionConfig{
+			Mode: zenlead.Disabled,
+		}
+		klog.Warning("Leader election disabled - single replica only (unsafe if replicas > 1)")
+	default:
+		klog.Fatalf("Invalid --leader-election-mode: %q (must be builtin, zenlead, or disabled)", *leaderElectionMode)
+	}
+
+	// Prepare manager options with leader election
+	mgrOpts, err := zenlead.PrepareManagerOptions(baseOpts, leConfig)
+	if err != nil {
+		klog.Fatalf("Failed to prepare manager options: %v", err)
+	}
+
+	// Get replica count from environment (set by Helm/Kubernetes)
+	replicaCount := 1
+	if rcStr := os.Getenv("REPLICA_COUNT"); rcStr != "" {
+		if rc, err := strconv.Atoi(rcStr); err == nil {
+			replicaCount = rc
+		}
+	}
+
+	// Enforce safe HA configuration
+	if err := zenlead.EnforceSafeHA(replicaCount, mgrOpts.LeaderElection); err != nil {
+		klog.Fatalf("Unsafe HA configuration: %v", err)
 	}
 
 	mgr, err := ctrl.NewManager(cfg, mgrOpts)
