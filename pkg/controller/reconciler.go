@@ -33,12 +33,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"go.uber.org/zap"
 
 	"github.com/kube-zen/zen-flow/pkg/api/v1alpha1"
 	"github.com/kube-zen/zen-flow/pkg/controller/dag"
 	"github.com/kube-zen/zen-flow/pkg/controller/metrics"
 	jferrors "github.com/kube-zen/zen-flow/pkg/errors"
-	"github.com/kube-zen/zen-sdk/pkg/logging"
+	sdklog "github.com/kube-zen/zen-sdk/pkg/logging"
 )
 
 // ExecutionPlan represents an execution plan for a JobFlow.
@@ -84,16 +85,19 @@ func (r *JobFlowReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	// No need to check leader status here - Manager only starts reconciler on leader
 
 	// Create logger with context and job flow fields
-	logger := logging.NewLogger("zen-flow-controller")
-	reconcileLogger := logger.WithContext(ctx).WithField("namespace", req.Namespace).WithField("name", req.Name)
-	reconcileCtx := ctx
+	logger := sdklog.NewLogger("zen-flow-controller")
+	reconcileLogger := logger
+	reconcileFields := []zap.Field{
+		sdklog.String("namespace", req.Namespace),
+		sdklog.String("name", req.Name),
+	}
 
 	reconcileStart := time.Now()
 	defer func() {
 		duration := time.Since(reconcileStart)
 		r.MetricsRecorder.RecordReconciliationDuration(duration.Seconds())
-		reconcileLogger.WithContext(ctx).Debug("Reconciliation completed",
-			logging.Duration("duration", duration))
+		fields := append(reconcileFields, sdklog.Duration("duration", duration))
+		reconcileLogger.Debug("Reconciliation completed", fields...)
 	}()
 
 	// Fetch the JobFlow instance
@@ -101,17 +105,18 @@ func (r *JobFlowReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	if err := r.Get(ctx, req.NamespacedName, jobFlow); err != nil {
 		if k8serrors.IsNotFound(err) {
 			// JobFlow was deleted, nothing to do
-			reconcileLogger.WithContext(ctx).Debug("JobFlow was deleted, skipping reconciliation")
+			reconcileLogger.Debug("JobFlow was deleted, skipping reconciliation", reconcileFields...)
 			return ctrl.Result{}, nil
 		}
 		// Error reading the object - requeue the request
-		reconcileLogger.WithContext(ctx).Error(err, "Failed to get JobFlow")
+		reconcileLogger.Error(err, "Failed to get JobFlow", reconcileFields...)
 		return ctrl.Result{}, err
 	}
 
 	// Validate JobFlow
 	if err := r.validateJobFlow(jobFlow); err != nil {
-		reconcileLogger.WithContext(ctx).Warn("JobFlow validation failed", logging.Operation("validate_jobflow"), logging.ErrorCode("VALIDATION_FAILED"), logging.String("error", err.Error()))
+		fields := append(reconcileFields, sdklog.Operation("validate_jobflow"), sdklog.ErrorCode("VALIDATION_FAILED"), sdklog.String("error", err.Error()))
+		reconcileLogger.Warn("JobFlow validation failed", fields...)
 		// P0.2: Persist validation failure status
 		jobFlow.Status.Phase = v1alpha1.JobFlowPhaseFailed
 		jobFlow.Status.Conditions = append(jobFlow.Status.Conditions, v1alpha1.JobFlowCondition{
@@ -122,7 +127,7 @@ func (r *JobFlowReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			Message:            err.Error(),
 		})
 		if updateErr := r.Status().Update(ctx, jobFlow); updateErr != nil {
-			reconcileLogger.WithContext(ctx).Error(updateErr, "Failed to update JobFlow status")
+			reconcileLogger.Error(updateErr, "Failed to update JobFlow status")
 			return ctrl.Result{}, updateErr
 		}
 		return ctrl.Result{}, nil
@@ -130,16 +135,16 @@ func (r *JobFlowReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	// Check concurrency policy before processing
 	if err := r.checkConcurrencyPolicy(ctx, jobFlow); err != nil {
-		reconcileLogger.WithContext(ctx).Warn("Concurrency policy violation", logging.Operation("check_concurrency"), logging.ErrorCode("CONCURRENCY_VIOLATION"), logging.String("error", err.Error()))
+		reconcileLogger.Warn("Concurrency policy violation", sdklog.Operation("check_concurrency"), sdklog.ErrorCode("CONCURRENCY_VIOLATION"), sdklog.String("error", err.Error()))
 		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 	}
 
 	// Check flow-level active deadline
 	if exceeded, err := r.checkActiveDeadline(jobFlow); err != nil {
-		reconcileLogger.WithContext(ctx).Error(err, "Failed to check active deadline")
+		reconcileLogger.Error(err, "Failed to check active deadline")
 		return ctrl.Result{}, err
 	} else if exceeded {
-		reconcileLogger.WithContext(ctx).Warn("Active deadline exceeded, marking JobFlow as failed")
+		reconcileLogger.Warn("Active deadline exceeded, marking JobFlow as failed")
 		jobFlow.Status.Phase = v1alpha1.JobFlowPhaseFailed
 		now := metav1.Now()
 		jobFlow.Status.CompletionTime = &now
@@ -158,10 +163,10 @@ func (r *JobFlowReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	// Check flow-level backoff limit
 	if exceeded, err := r.checkBackoffLimit(jobFlow); err != nil {
-		reconcileLogger.WithContext(ctx).Error(err, "Failed to check backoff limit")
+		reconcileLogger.Error(err, "Failed to check backoff limit")
 		return ctrl.Result{}, err
 	} else if exceeded {
-		reconcileLogger.WithContext(ctx).Warn("Backoff limit exceeded, marking JobFlow as failed")
+		reconcileLogger.Warn("Backoff limit exceeded, marking JobFlow as failed")
 		jobFlow.Status.Phase = v1alpha1.JobFlowPhaseFailed
 		now := metav1.Now()
 		jobFlow.Status.CompletionTime = &now
@@ -180,8 +185,8 @@ func (r *JobFlowReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	// Initialize if needed
 	if !r.hasInitialized(jobFlow) {
-		reconcileLogger.WithContext(ctx).Info("Initializing JobFlow")
-		if err := r.initializeJobFlow(reconcileCtx, jobFlow); err != nil {
+		reconcileLogger.Info("Initializing JobFlow", reconcileFields...)
+		if err := r.initializeJobFlow(ctx, jobFlow); err != nil {
 			return ctrl.Result{}, err
 		}
 		return ctrl.Result{}, nil
@@ -193,7 +198,7 @@ func (r *JobFlowReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	// P0.4: Check for cycles in DAG
 	sortedSteps, err := dagGraph.TopologicalSort()
 	if err != nil {
-		reconcileLogger.WithContext(ctx).Error(err, "DAG cycle detected")
+		reconcileLogger.Error(err, "DAG cycle detected", reconcileFields...)
 		jobFlow.Status.Phase = v1alpha1.JobFlowPhaseFailed
 		jobFlow.Status.Conditions = append(jobFlow.Status.Conditions, v1alpha1.JobFlowCondition{
 			Type:               "Ready",
@@ -209,18 +214,18 @@ func (r *JobFlowReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	// Check for manual approval steps and handle approvals
-	if err := r.checkManualApprovals(reconcileCtx, jobFlow); err != nil {
-		reconcileLogger.WithContext(ctx).Error(err, "Failed to check manual approvals")
+	if err := r.checkManualApprovals(ctx, jobFlow); err != nil {
+		reconcileLogger.Error(err, "Failed to check manual approvals", reconcileFields...)
 		return ctrl.Result{}, err
 	}
 
 	// P0.1: Refresh step statuses from Jobs for any step with JobRef (Running/Pending-with-JobRef)
-	if err := r.refreshStepStatuses(reconcileCtx, jobFlow); err != nil {
+	if err := r.refreshStepStatuses(ctx, jobFlow); err != nil {
 		if r.isRetryable(err) {
-			reconcileLogger.WithContext(ctx).Debug("Retryable error refreshing step statuses, will retry")
+			reconcileLogger.Debug("Retryable error refreshing step statuses, will retry", reconcileFields...)
 			return ctrl.Result{Requeue: true}, err
 		}
-		reconcileLogger.WithContext(ctx).Error(err, "Failed to refresh step statuses")
+		reconcileLogger.Error(err, "Failed to refresh step statuses", reconcileFields...)
 		// Continue with execution plan despite refresh errors
 	}
 
@@ -228,16 +233,17 @@ func (r *JobFlowReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	executionPlan := r.createExecutionPlan(dagGraph, jobFlow, sortedSteps)
 
 	// Check step timeouts for running steps
-	if err := r.checkStepTimeouts(reconcileCtx, jobFlow); err != nil {
-		reconcileLogger.WithContext(ctx).Error(err, "Failed to check step timeouts")
+	if err := r.checkStepTimeouts(ctx, jobFlow); err != nil {
+		reconcileLogger.Error(err, "Failed to check step timeouts", reconcileFields...)
 		return ctrl.Result{}, err
 	}
 
 	// Handle step retries for failed steps
 	for _, stepStatus := range jobFlow.Status.Steps {
 		if stepStatus.Phase == v1alpha1.StepPhaseFailed {
-			if err := r.handleStepRetry(reconcileCtx, jobFlow, stepStatus.Name); err != nil {
-				reconcileLogger.WithContext(ctx).Error(err, "Failed to handle step retry", logging.Operation("step_retry"), logging.ErrorCode("STEP_RETRY_FAILED"), logging.String("step", stepStatus.Name))
+			if err := r.handleStepRetry(ctx, jobFlow, stepStatus.Name); err != nil {
+				fields := append(reconcileFields, sdklog.Operation("step_retry"), sdklog.ErrorCode("STEP_RETRY_FAILED"), sdklog.String("step", stepStatus.Name))
+				reconcileLogger.Error(err, "Failed to handle step retry", fields...)
 				return ctrl.Result{}, err
 			}
 		}
@@ -245,13 +251,15 @@ func (r *JobFlowReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	// Execute ready steps
 	for _, stepName := range executionPlan.ReadySteps {
-		reconcileLogger.WithContext(ctx).Debug("Executing step", logging.Operation("execute_step"), logging.String("step", stepName))
-		if err := r.executeStep(reconcileCtx, jobFlow, stepName); err != nil {
+		fields := append(reconcileFields, sdklog.Operation("execute_step"), sdklog.String("step", stepName))
+		reconcileLogger.Debug("Executing step", fields...)
+		if err := r.executeStep(ctx, jobFlow, stepName); err != nil {
 			if r.isRetryable(err) {
-				reconcileLogger.WithContext(ctx).Debug("Retryable error, will retry", logging.String("step", stepName), logging.String("error", err.Error()))
+				fields := append(reconcileFields, sdklog.String("step", stepName), sdklog.String("error", err.Error()))
+				reconcileLogger.Debug("Retryable error, will retry", fields...)
 				return ctrl.Result{Requeue: true}, err
 			}
-			if err := r.handleStepFailure(reconcileCtx, jobFlow, stepName, err); err != nil {
+			if err := r.handleStepFailure(ctx, jobFlow, stepName, err); err != nil {
 				return ctrl.Result{}, err
 			}
 		}
@@ -259,19 +267,19 @@ func (r *JobFlowReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	// Update status
 	if err := r.updateJobFlowStatus(ctx, jobFlow, executionPlan); err != nil {
-		reconcileLogger.WithContext(ctx).Error(err, "Failed to update JobFlow status")
+		reconcileLogger.Error(err, "Failed to update JobFlow status")
 		return ctrl.Result{}, err
 	}
 
 	// Check TTL cleanup if JobFlow is finished
 	if jobFlow.Status.Phase == v1alpha1.JobFlowPhaseSucceeded || jobFlow.Status.Phase == v1alpha1.JobFlowPhaseFailed {
 		if shouldDelete, err := r.shouldDeleteJobFlow(jobFlow); err != nil {
-			reconcileLogger.WithContext(ctx).Error(err, "Failed to check TTL")
+			reconcileLogger.Error(err, "Failed to check TTL")
 			return ctrl.Result{}, err
 		} else if shouldDelete {
-			reconcileLogger.WithContext(ctx).Info("TTL expired, deleting JobFlow")
+			reconcileLogger.Info("TTL expired, deleting JobFlow")
 			if err := r.Delete(ctx, jobFlow); err != nil {
-				reconcileLogger.WithContext(ctx).Error(err, "Failed to delete JobFlow")
+				reconcileLogger.Error(err, "Failed to delete JobFlow")
 				return ctrl.Result{}, err
 			}
 			return ctrl.Result{}, nil
@@ -362,7 +370,7 @@ func (r *JobFlowReconciler) createResourceTemplates(ctx context.Context, jobFlow
 		return nil
 	}
 
-	logger := logging.NewLogger("zen-flow-controller").WithContext(ctx).WithFields(map[string]interface{}{"namespace": jobFlow.Namespace, "name": jobFlow.Name})
+	logger := sdklog.NewLogger("zen-flow-controller")
 
 	// Create PVCs
 	for _, pvcTemplate := range jobFlow.Spec.ResourceTemplates.VolumeClaimTemplates {
@@ -378,7 +386,7 @@ func (r *JobFlowReconciler) createResourceTemplates(ctx context.Context, jobFlow
 				return jferrors.WithJobFlow(jferrors.Wrapf(err, "pvc_creation_failed", "failed to create PVC %s", pvc.Name), jobFlow.Namespace, jobFlow.Name)
 			}
 		} else {
-			logger.WithField("pvc_name", pvc.Name).WithContext(ctx).Debug("Created PVC for JobFlow")
+			logger.Debug("Created PVC for JobFlow", sdklog.String("pvc_name", pvc.Name))
 		}
 	}
 
@@ -396,7 +404,7 @@ func (r *JobFlowReconciler) createResourceTemplates(ctx context.Context, jobFlow
 				return jferrors.WithJobFlow(jferrors.Wrapf(err, "configmap_creation_failed", "failed to create ConfigMap %s", cm.Name), jobFlow.Namespace, jobFlow.Name)
 			}
 		} else {
-			logger.WithField("configmap_name", cm.Name).WithContext(ctx).Debug("Created ConfigMap for JobFlow")
+			logger.Debug("Created ConfigMap for JobFlow", sdklog.String("configmap_name", cm.Name))
 		}
 	}
 
@@ -406,7 +414,7 @@ func (r *JobFlowReconciler) createResourceTemplates(ctx context.Context, jobFlow
 // refreshStepStatuses refreshes step statuses from Jobs for any step with a JobRef.
 // P0.1: This ensures Running steps are reconciled to completion.
 func (r *JobFlowReconciler) refreshStepStatuses(ctx context.Context, jobFlow *v1alpha1.JobFlow) error {
-	logger := logging.NewLogger("zen-flow-controller").WithContext(ctx).WithFields(map[string]interface{}{"namespace": jobFlow.Namespace, "name": jobFlow.Name})
+	logger := sdklog.NewLogger("zen-flow-controller")
 
 	for i := range jobFlow.Status.Steps {
 		stepStatus := &jobFlow.Status.Steps[i]
@@ -421,7 +429,7 @@ func (r *JobFlowReconciler) refreshStepStatuses(ctx context.Context, jobFlow *v1
 		if err := r.Get(ctx, jobKey, job); err != nil {
 			if k8serrors.IsNotFound(err) {
 				// Job was deleted, mark step as failed
-				logger.WithContext(ctx).Warn("Job not found, marking step as failed")
+				logger.Warn("Job not found, marking step as failed")
 				stepStatus.Phase = v1alpha1.StepPhaseFailed
 				now := metav1.Now()
 				stepStatus.CompletionTime = &now
@@ -560,7 +568,11 @@ func (r *JobFlowReconciler) getStepStatus(status v1alpha1.JobFlowStatus, stepNam
 
 // executeStep executes a step.
 func (r *JobFlowReconciler) executeStep(ctx context.Context, jobFlow *v1alpha1.JobFlow, stepName string) error {
-	logger := logging.NewLogger("zen-flow-controller").WithContext(ctx).WithFields(map[string]interface{}{"namespace": jobFlow.Namespace, "name": jobFlow.Name})
+	logger := sdklog.NewLogger("zen-flow-controller")
+	baseFields := []sdklog.Field{
+		sdklog.String("namespace", jobFlow.Namespace),
+		sdklog.String("name", jobFlow.Name),
+	}
 
 	// Find step spec
 	var stepSpec *v1alpha1.Step
@@ -591,7 +603,7 @@ func (r *JobFlowReconciler) executeStep(ctx context.Context, jobFlow *v1alpha1.J
 			}
 		} else {
 			// Update step status based on job status
-			logger.WithContext(ctx).Debug("Job already exists, updating step status")
+			logger.Debug("Job already exists, updating step status")
 			return r.updateStepStatusFromJob(ctx, jobFlow, stepName, job)
 		}
 	}
@@ -603,7 +615,7 @@ func (r *JobFlowReconciler) executeStep(ctx context.Context, jobFlow *v1alpha1.J
 
 	// Handle step inputs before creating job
 	if err := r.handleStepInputs(ctx, jobFlow, stepSpec); err != nil {
-		logger.WithContext(ctx).Warn("Failed to handle step inputs, continuing")
+		logger.Warn("Failed to handle step inputs, continuing", baseFields...)
 		// Continue even if inputs fail (can be enhanced to fail fast)
 	}
 
@@ -624,14 +636,18 @@ func (r *JobFlowReconciler) executeStep(ctx context.Context, jobFlow *v1alpha1.J
 		UID:        job.UID,
 	}
 
-	logger.WithContext(ctx).Info("Created Job for step")
+	logger.Info("Created Job for step", baseFields...)
 	r.EventRecorder.Eventf(jobFlow, corev1.EventTypeNormal, "StepCreated", "Created Job for step %s", stepName)
 	return r.Status().Update(ctx, jobFlow)
 }
 
 // createJobForStep creates a Kubernetes Job for a step.
 func (r *JobFlowReconciler) createJobForStep(ctx context.Context, jobFlow *v1alpha1.JobFlow, step *v1alpha1.Step) (*batchv1.Job, error) {
-	logger := logging.NewLogger("zen-flow-controller").WithContext(ctx).WithFields(map[string]interface{}{"namespace": jobFlow.Namespace, "name": jobFlow.Name})
+	logger := sdklog.NewLogger("zen-flow-controller")
+	baseFields := []sdklog.Field{
+		sdklog.String("namespace", jobFlow.Namespace),
+		sdklog.String("name", jobFlow.Name),
+	}
 
 	// Get job template from step
 	jobTemplate, err := step.GetJobTemplate()
@@ -676,13 +692,17 @@ func (r *JobFlowReconciler) createJobForStep(ctx context.Context, jobFlow *v1alp
 		return nil, jferrors.WithStep(jferrors.WithJobFlow(jferrors.Wrapf(err, "job_create_failed", "failed to create Job"), jobFlow.Namespace, jobFlow.Name), step.Name)
 	}
 
-	logger.WithContext(ctx).Debug("Job created successfully")
+	logger.Debug("Job created successfully", baseFields...)
 	return job, nil
 }
 
 // updateStepStatusFromJob updates step status based on job status.
 func (r *JobFlowReconciler) updateStepStatusFromJob(ctx context.Context, jobFlow *v1alpha1.JobFlow, stepName string, job *batchv1.Job) error {
-	logger := logging.NewLogger("zen-flow-controller").WithContext(ctx).WithFields(map[string]interface{}{"namespace": jobFlow.Namespace, "name": jobFlow.Name})
+	logger := sdklog.NewLogger("zen-flow-controller")
+	baseFields := []sdklog.Field{
+		sdklog.String("namespace", jobFlow.Namespace),
+		sdklog.String("name", jobFlow.Name),
+	}
 
 	stepStatus := r.getStepStatus(jobFlow.Status, stepName)
 	if stepStatus == nil {
@@ -703,7 +723,7 @@ func (r *JobFlowReconciler) updateStepStatusFromJob(ctx context.Context, jobFlow
 			duration := now.Sub(stepStatus.StartTime.Time).Seconds()
 			r.MetricsRecorder.RecordStepDuration(jobFlow.Name, stepName, "success", duration)
 		}
-		logger.WithContext(ctx).Info("Step succeeded")
+		logger.Info("Step succeeded", baseFields...)
 
 		// Handle step outputs after success
 		var stepSpec *v1alpha1.Step
@@ -715,17 +735,17 @@ func (r *JobFlowReconciler) updateStepStatusFromJob(ctx context.Context, jobFlow
 		}
 		if stepSpec != nil {
 			if err := r.handleStepOutputs(ctx, jobFlow, stepSpec, stepStatus); err != nil {
-				logger.WithContext(ctx).Warn("Failed to handle step outputs")
+				logger.Warn("Failed to handle step outputs", baseFields...)
 			}
 		}
 	} else if job.Status.Failed > 0 {
 		// Check pod failure policy before marking as failed
 		if shouldFail, err := r.checkPodFailurePolicy(ctx, jobFlow, stepName, job); err != nil {
-			logger.WithContext(ctx).Warn("Failed to check pod failure policy, defaulting to fail")
+			logger.Warn("Failed to check pod failure policy, defaulting to fail", baseFields...)
 			newPhase = v1alpha1.StepPhaseFailed
 		} else if !shouldFail {
 			// Pod failure policy says to ignore or count, don't mark as failed
-			logger.WithContext(ctx).Info("Pod failure policy indicates step should not fail")
+			logger.Info("Pod failure policy indicates step should not fail", baseFields...)
 			newPhase = v1alpha1.StepPhaseSucceeded // Treat as succeeded if policy says ignore
 			now := metav1.Now()
 			stepStatus.CompletionTime = &now
@@ -745,11 +765,11 @@ func (r *JobFlowReconciler) updateStepStatusFromJob(ctx context.Context, jobFlow
 				duration := now.Sub(stepStatus.StartTime.Time).Seconds()
 				r.MetricsRecorder.RecordStepDuration(jobFlow.Name, stepName, "failure", duration)
 			}
-			logger.WithContext(ctx).Warn("Step failed")
+			logger.Warn("Step failed", baseFields...)
 		}
 	} else {
 		newPhase = v1alpha1.StepPhaseRunning
-		logger.WithContext(ctx).Debug("Step still running")
+		logger.Debug("Step still running", baseFields...)
 	}
 
 	stepStatus.Phase = newPhase
@@ -762,7 +782,11 @@ func (r *JobFlowReconciler) updateStepStatusFromJob(ctx context.Context, jobFlow
 
 // handleStepFailure handles a step failure.
 func (r *JobFlowReconciler) handleStepFailure(ctx context.Context, jobFlow *v1alpha1.JobFlow, stepName string, err error) error {
-	logger := logging.NewLogger("zen-flow-controller").WithContext(ctx).WithFields(map[string]interface{}{"namespace": jobFlow.Namespace, "name": jobFlow.Name})
+	logger := sdklog.NewLogger("zen-flow-controller")
+	baseFields := []sdklog.Field{
+		sdklog.String("namespace", jobFlow.Namespace),
+		sdklog.String("name", jobFlow.Name),
+	}
 
 	stepStatus := r.getStepStatus(jobFlow.Status, stepName)
 	if stepStatus == nil {
@@ -781,7 +805,7 @@ func (r *JobFlowReconciler) handleStepFailure(ctx context.Context, jobFlow *v1al
 	if stepSpec != nil && stepSpec.ContinueOnFailure {
 		stepStatus.Phase = v1alpha1.StepPhaseFailed
 		stepStatus.Message = err.Error()
-		logger.WithContext(ctx).Warn("Step failed but continuing due to ContinueOnFailure")
+		logger.Warn("Step failed but continuing due to ContinueOnFailure", baseFields...)
 		r.EventRecorder.Eventf(jobFlow, corev1.EventTypeWarning, "StepFailed", "Step %s failed but continuing: %v", stepName, err)
 		return r.Status().Update(ctx, jobFlow)
 	}
@@ -793,7 +817,7 @@ func (r *JobFlowReconciler) handleStepFailure(ctx context.Context, jobFlow *v1al
 	stepStatus.Phase = v1alpha1.StepPhaseFailed
 	stepStatus.Message = err.Error()
 
-	logger.WithContext(ctx).Error(fmt.Errorf("step failed"), "Step failed, marking JobFlow as failed")
+	logger.Error(fmt.Errorf("step failed"), "Step failed, marking JobFlow as failed")
 	r.EventRecorder.Eventf(jobFlow, corev1.EventTypeWarning, "StepFailed", "Step %s failed: %v", stepName, err)
 	return r.Status().Update(ctx, jobFlow)
 }
@@ -837,7 +861,11 @@ func (r *JobFlowReconciler) isRetryable(err error) bool {
 //
 //nolint:gocyclo // comprehensive status update logic
 func (r *JobFlowReconciler) updateJobFlowStatus(ctx context.Context, jobFlow *v1alpha1.JobFlow, plan *ExecutionPlan) error {
-	logger := logging.NewLogger("zen-flow-controller").WithContext(ctx).WithFields(map[string]interface{}{"namespace": jobFlow.Namespace, "name": jobFlow.Name})
+	logger := sdklog.NewLogger("zen-flow-controller")
+	baseFields := []sdklog.Field{
+		sdklog.String("namespace", jobFlow.Namespace),
+		sdklog.String("name", jobFlow.Name),
+	}
 
 	// Update progress
 	if jobFlow.Status.Progress != nil {
@@ -859,10 +887,10 @@ func (r *JobFlowReconciler) updateJobFlowStatus(ctx context.Context, jobFlow *v1
 		jobFlow.Status.Progress.SuccessfulSteps = successful
 		jobFlow.Status.Progress.FailedSteps = failed
 
-		logger.WithContext(ctx).Debug("Updated JobFlow progress",
-			logging.String("completed_steps", fmt.Sprintf("%d", completed)),
-			logging.String("successful_steps", fmt.Sprintf("%d", successful)),
-			logging.String("failed_steps", fmt.Sprintf("%d", failed)))
+		fields := append(baseFields, sdklog.String("completed_steps", fmt.Sprintf("%d", completed)),
+			sdklog.String("successful_steps", fmt.Sprintf("%d", successful)),
+			sdklog.String("failed_steps", fmt.Sprintf("%d", failed)))
+		logger.Debug("Updated JobFlow progress", fields...)
 	}
 
 	// Update phase
@@ -888,10 +916,10 @@ func (r *JobFlowReconciler) updateJobFlowStatus(ctx context.Context, jobFlow *v1
 	if allComplete {
 		if allSucceeded {
 			jobFlow.Status.Phase = v1alpha1.JobFlowPhaseSucceeded
-			logger.WithContext(ctx).Info("JobFlow completed successfully")
+			logger.Info("JobFlow completed successfully")
 		} else {
 			jobFlow.Status.Phase = v1alpha1.JobFlowPhaseFailed
-			logger.WithContext(ctx).Warn("JobFlow completed with failures")
+			logger.Warn("JobFlow completed with failures")
 		}
 		now := metav1.Now()
 		jobFlow.Status.CompletionTime = &now
@@ -1062,7 +1090,7 @@ func (r *JobFlowReconciler) checkBackoffLimit(jobFlow *v1alpha1.JobFlow) (bool, 
 
 // checkStepTimeouts checks if any running steps have exceeded their timeout.
 func (r *JobFlowReconciler) checkStepTimeouts(ctx context.Context, jobFlow *v1alpha1.JobFlow) error {
-	logger := logging.NewLogger("zen-flow-controller").WithContext(ctx).WithFields(map[string]interface{}{"namespace": jobFlow.Namespace, "name": jobFlow.Name})
+	logger := sdklog.NewLogger("zen-flow-controller")
 
 	for i := range jobFlow.Status.Steps {
 		stepStatus := &jobFlow.Status.Steps[i]
@@ -1092,7 +1120,7 @@ func (r *JobFlowReconciler) checkStepTimeouts(ctx context.Context, jobFlow *v1al
 		now := time.Now()
 
 		if now.After(timeoutTime) {
-			logger.WithContext(ctx).Warn("Step timeout exceeded")
+			logger.Warn("Step timeout exceeded")
 			// Mark step as failed due to timeout
 			stepStatus.Phase = v1alpha1.StepPhaseFailed
 			nowTime := metav1.Now()
@@ -1112,7 +1140,7 @@ func (r *JobFlowReconciler) checkStepTimeouts(ctx context.Context, jobFlow *v1al
 				jobKey := types.NamespacedName{Namespace: jobFlow.Namespace, Name: stepStatus.JobRef.Name}
 				if err := r.Get(ctx, jobKey, job); err == nil {
 					if err := r.Delete(ctx, job); err != nil {
-						logger.WithContext(ctx).Error(err, "Failed to delete timed-out job")
+						logger.Error(err, "Failed to delete timed-out job")
 					}
 				}
 			}
@@ -1137,7 +1165,7 @@ func (r *JobFlowReconciler) checkStepTimeouts(ctx context.Context, jobFlow *v1al
 
 // handleStepRetry handles retrying a failed step based on RetryPolicy.
 func (r *JobFlowReconciler) handleStepRetry(ctx context.Context, jobFlow *v1alpha1.JobFlow, stepName string) error {
-	logger := logging.NewLogger("zen-flow-controller").WithContext(ctx).WithFields(map[string]interface{}{"namespace": jobFlow.Namespace, "name": jobFlow.Name})
+	logger := sdklog.NewLogger("zen-flow-controller")
 
 	// Find step spec
 	var stepSpec *v1alpha1.Step
@@ -1168,7 +1196,7 @@ func (r *JobFlowReconciler) handleStepRetry(ctx context.Context, jobFlow *v1alph
 	}
 
 	if stepStatus.RetryCount >= limit {
-		logger.WithContext(ctx).Warn("Step retry limit exceeded")
+		logger.Warn("Step retry limit exceeded")
 		return nil // Retry limit exceeded
 	}
 
@@ -1192,7 +1220,7 @@ func (r *JobFlowReconciler) handleStepRetry(ctx context.Context, jobFlow *v1alph
 	stepStatus.JobRef = nil
 	stepStatus.Message = ""
 
-	logger.WithField("retry_count", stepStatus.RetryCount).Info("Retrying step")
+	logger.Info("Retrying step", sdklog.Int("retry_count", int(stepStatus.RetryCount)))
 	r.EventRecorder.Eventf(jobFlow, corev1.EventTypeNormal, "StepRetry", "Retrying step %s (attempt %d)", stepName, stepStatus.RetryCount)
 
 	return r.Status().Update(ctx, jobFlow)
@@ -1369,18 +1397,18 @@ func (r *JobFlowReconciler) handleStepInputs(ctx context.Context, jobFlow *v1alp
 		return nil
 	}
 
-	logger := logging.NewLogger("zen-flow-controller").WithContext(ctx).WithFields(map[string]interface{}{"namespace": jobFlow.Namespace, "name": jobFlow.Name})
+	logger := sdklog.NewLogger("zen-flow-controller")
 
 	// Handle artifacts
 	for _, artifact := range step.Inputs.Artifacts {
-		logger.WithField("artifact_name", artifact.Name).WithContext(ctx).Debug("Processing artifact input")
+		logger.Debug("Processing artifact input", sdklog.String("artifact_name", artifact.Name))
 		// TODO: Implement artifact fetching from previous steps or HTTP sources
 		// For now, just log
 	}
 
 	// Handle parameters
 	for _, param := range step.Inputs.Parameters {
-		logger.WithField("parameter_name", param.Name).WithContext(ctx).Debug("Processing parameter input")
+		logger.Debug("Processing parameter input", sdklog.String("parameter_name", param.Name))
 		// TODO: Implement parameter resolution from values or valueFrom
 		// For now, just log
 	}
@@ -1395,18 +1423,18 @@ func (r *JobFlowReconciler) handleStepOutputs(ctx context.Context, jobFlow *v1al
 		return nil
 	}
 
-	logger := logging.NewLogger("zen-flow-controller").WithContext(ctx).WithFields(map[string]interface{}{"namespace": jobFlow.Namespace, "name": jobFlow.Name})
+	logger := sdklog.NewLogger("zen-flow-controller")
 
 	// Handle artifacts
 	for _, artifact := range step.Outputs.Artifacts {
-		logger.WithField("artifact_name", artifact.Name).WithContext(ctx).Debug("Processing artifact output")
+		logger.Debug("Processing artifact output", sdklog.String("artifact_name", artifact.Name))
 		// TODO: Implement artifact archiving/uploading to S3 or storage
 		// For now, just log
 	}
 
 	// Handle parameters
 	for _, param := range step.Outputs.Parameters {
-		logger.WithField("parameter_name", param.Name).WithContext(ctx).Debug("Processing parameter output")
+		logger.Debug("Processing parameter output", sdklog.String("parameter_name", param.Name))
 		// TODO: Implement parameter extraction from job outputs using JSONPath
 		// For now, just log
 	}
@@ -1421,7 +1449,11 @@ func (r *JobFlowReconciler) handleStepOutputs(ctx context.Context, jobFlow *v1al
 
 // checkManualApprovals checks for manual approval steps and handles approvals.
 func (r *JobFlowReconciler) checkManualApprovals(ctx context.Context, jobFlow *v1alpha1.JobFlow) error {
-	logger := logging.NewLogger("zen-flow-controller").WithContext(ctx).WithFields(map[string]interface{}{"namespace": jobFlow.Namespace, "name": jobFlow.Name})
+	logger := sdklog.NewLogger("zen-flow-controller")
+	baseFields := []sdklog.Field{
+		sdklog.String("namespace", jobFlow.Namespace),
+		sdklog.String("name", jobFlow.Name),
+	}
 
 	// Check if there are any steps waiting for approval
 	hasPendingApproval := false
@@ -1439,7 +1471,7 @@ func (r *JobFlowReconciler) checkManualApprovals(ctx context.Context, jobFlow *v
 				if stepStatus.StartTime == nil {
 					stepStatus.StartTime = &metav1.Time{Time: time.Now()}
 				}
-				logger.WithContext(ctx).Info("Manual approval step approved")
+				logger.Info("Manual approval step approved")
 				r.EventRecorder.Eventf(jobFlow, corev1.EventTypeNormal, "StepApproved", "Step %s has been approved", stepStatus.Name)
 			}
 		}
@@ -1448,12 +1480,12 @@ func (r *JobFlowReconciler) checkManualApprovals(ctx context.Context, jobFlow *v
 	// Update JobFlow phase based on approval status
 	if hasPendingApproval && jobFlow.Status.Phase != v1alpha1.JobFlowPhasePaused {
 		jobFlow.Status.Phase = v1alpha1.JobFlowPhasePaused
-		logger.WithContext(ctx).Info("JobFlow paused waiting for manual approval")
+		logger.Info("JobFlow paused waiting for manual approval")
 		r.EventRecorder.Eventf(jobFlow, corev1.EventTypeNormal, "FlowPaused", "JobFlow paused waiting for manual approval")
 	} else if !hasPendingApproval && jobFlow.Status.Phase == v1alpha1.JobFlowPhasePaused {
 		// No more pending approvals, resume the flow
 		jobFlow.Status.Phase = v1alpha1.JobFlowPhaseRunning
-		logger.WithContext(ctx).Info("JobFlow resumed after approval")
+		logger.Info("JobFlow resumed after approval", baseFields...)
 		r.EventRecorder.Eventf(jobFlow, corev1.EventTypeNormal, "FlowResumed", "JobFlow resumed after approval")
 	}
 
@@ -1462,7 +1494,7 @@ func (r *JobFlowReconciler) checkManualApprovals(ctx context.Context, jobFlow *v
 
 // handleManualApprovalStep handles a manual approval step.
 func (r *JobFlowReconciler) handleManualApprovalStep(ctx context.Context, jobFlow *v1alpha1.JobFlow, stepSpec *v1alpha1.Step, stepStatus *v1alpha1.StepStatus) error {
-	logger := logging.NewLogger("zen-flow-controller").WithContext(ctx).WithFields(map[string]interface{}{"namespace": jobFlow.Namespace, "name": jobFlow.Name})
+	logger := sdklog.NewLogger("zen-flow-controller")
 
 	// If step is already approved, mark it as succeeded
 	approvalKey := fmt.Sprintf("%s/%s", v1alpha1.ApprovalAnnotationKey, stepSpec.Name)
@@ -1473,7 +1505,7 @@ func (r *JobFlowReconciler) handleManualApprovalStep(ctx context.Context, jobFlo
 			if stepStatus.StartTime == nil {
 				stepStatus.StartTime = &metav1.Time{Time: time.Now()}
 			}
-			logger.WithContext(ctx).Info("Manual approval step approved")
+			logger.Info("Manual approval step approved")
 			r.EventRecorder.Eventf(jobFlow, corev1.EventTypeNormal, "StepApproved", "Step %s has been approved", stepSpec.Name)
 			return r.Status().Update(ctx, jobFlow)
 		}
@@ -1489,7 +1521,7 @@ func (r *JobFlowReconciler) handleManualApprovalStep(ctx context.Context, jobFlo
 		} else {
 			stepStatus.Message = fmt.Sprintf("Waiting for manual approval of step %s", stepSpec.Name)
 		}
-		logger.WithField("message", stepStatus.Message).Info("Manual approval step waiting for approval")
+		logger.Info("Manual approval step waiting for approval", sdklog.String("message", stepStatus.Message))
 		r.EventRecorder.Eventf(jobFlow, corev1.EventTypeNormal, "StepPendingApproval", "Step %s is waiting for manual approval: %s", stepSpec.Name, stepStatus.Message)
 
 		// Update JobFlow phase to Paused
