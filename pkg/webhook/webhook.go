@@ -31,7 +31,7 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 
 	"github.com/kube-zen/zen-flow/pkg/api/v1alpha1"
-	"github.com/kube-zen/zen-flow/pkg/logging"
+	"github.com/kube-zen/zen-sdk/pkg/logging"
 	"github.com/kube-zen/zen-flow/pkg/validation"
 )
 
@@ -104,16 +104,16 @@ func NewWebhookServer(addr, certFile, keyFile string) (*WebhookServer, error) {
 
 // Start starts the webhook server without TLS (for testing).
 func (ws *WebhookServer) Start(ctx context.Context) error {
-	logger := logging.NewLogger()
-	logger.Info("Starting webhook server without TLS (testing mode)...")
+	logger := logging.NewLogger("zen-flow-webhook")
+	logger.WithContext(ctx).Info("Starting webhook server without TLS (testing mode)...")
 
 	go func() {
 		<-ctx.Done()
-		logger.Info("Shutting down webhook server...")
+		logger.WithContext(ctx).Info("Shutting down webhook server...")
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		if err := ws.server.Shutdown(shutdownCtx); err != nil {
-			logger.WithError(err).Error("Error shutting down webhook server")
+			logger.WithContext(ctx).Error(err, "Error shutting down webhook server")
 		}
 	}()
 
@@ -126,16 +126,17 @@ func (ws *WebhookServer) Start(ctx context.Context) error {
 
 // StartTLS starts the webhook server with TLS.
 func (ws *WebhookServer) StartTLS(ctx context.Context, certFile, keyFile string) error {
-	logger := logging.NewLogger()
-	logger.Infof("Starting webhook server with TLS on %s", ws.server.Addr)
+	logger := logging.NewLogger("zen-flow-webhook")
+	logger.WithContext(ctx).Info("Starting webhook server with TLS",
+		logging.String("address", ws.server.Addr))
 
 	go func() {
 		<-ctx.Done()
-		logger.Info("Shutting down webhook server...")
+		logger.WithContext(ctx).Info("Shutting down webhook server...")
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		if err := ws.server.Shutdown(shutdownCtx); err != nil {
-			logger.WithError(err).Error("Error shutting down webhook server")
+			logger.WithContext(ctx).Error(err, "Error shutting down webhook server")
 		}
 	}()
 
@@ -148,7 +149,7 @@ func (ws *WebhookServer) StartTLS(ctx context.Context, certFile, keyFile string)
 
 // handleValidate handles admission review requests for JobFlow validation.
 func (ws *WebhookServer) handleValidate(w http.ResponseWriter, r *http.Request) {
-	logger := logging.NewLogger()
+	logger := logging.NewLogger("zen-flow-webhook")
 
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -156,9 +157,10 @@ func (ws *WebhookServer) handleValidate(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// Read admission review request
+	ctx := r.Context()
 	var review admissionv1.AdmissionReview
 	if err := json.NewDecoder(r.Body).Decode(&review); err != nil {
-		logger.WithError(err).Error("Failed to decode admission review")
+		logger.WithContext(ctx).Error(err, "Failed to decode admission review")
 		http.Error(w, fmt.Sprintf("Failed to decode request: %v", err), http.StatusBadRequest)
 		return
 	}
@@ -176,7 +178,8 @@ func (ws *WebhookServer) handleValidate(w http.ResponseWriter, r *http.Request) 
 
 	// Validate the JobFlow
 	if err := ws.validateJobFlow(review.Request); err != nil {
-		logger.WithError(err).V(2).Info("JobFlow validation failed")
+		logger.WithContext(ctx).Debug("JobFlow validation failed",
+			logging.String("error", err.Error()))
 		response.Response.Allowed = false
 		response.Response.Result = &metav1.Status{
 			Code:    http.StatusUnprocessableEntity,
@@ -184,13 +187,13 @@ func (ws *WebhookServer) handleValidate(w http.ResponseWriter, r *http.Request) 
 		}
 	} else {
 		response.Response.Allowed = true
-		logger.V(4).Info("JobFlow validation succeeded")
+		logger.WithContext(ctx).Debug("JobFlow validation succeeded")
 	}
 
 	// Send response
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(response); err != nil {
-		logger.WithError(err).Error("Failed to encode admission review response")
+		logger.WithContext(ctx).Error(err, "Failed to encode admission review response")
 		http.Error(w, fmt.Sprintf("Failed to encode response: %v", err), http.StatusInternalServerError)
 		return
 	}
@@ -230,7 +233,7 @@ func (ws *WebhookServer) validateJobFlow(req *admissionv1.AdmissionRequest) erro
 
 // handleMutate handles admission review requests for JobFlow mutation (defaults).
 func (ws *WebhookServer) handleMutate(w http.ResponseWriter, r *http.Request) {
-	logger := logging.NewLogger()
+	logger := logging.NewLogger("zen-flow-webhook")
 
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -238,9 +241,10 @@ func (ws *WebhookServer) handleMutate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Read admission review request
+	ctx := r.Context()
 	var review admissionv1.AdmissionReview
 	if err := json.NewDecoder(r.Body).Decode(&review); err != nil {
-		logger.WithError(err).Error("Failed to decode admission review")
+		logger.WithContext(ctx).Error(err, "Failed to decode admission review")
 		http.Error(w, fmt.Sprintf("Failed to decode request: %v", err), http.StatusBadRequest)
 		return
 	}
@@ -259,7 +263,7 @@ func (ws *WebhookServer) handleMutate(w http.ResponseWriter, r *http.Request) {
 	// Mutate the JobFlow (set defaults)
 	patches, err := ws.mutateJobFlow(review.Request)
 	if err != nil {
-		logger.WithError(err).Error("JobFlow mutation failed")
+		logger.WithContext(ctx).Error(err, "JobFlow mutation failed")
 		response.Response.Allowed = false
 		response.Response.Result = &metav1.Status{
 			Code:    http.StatusInternalServerError,
@@ -270,7 +274,7 @@ func (ws *WebhookServer) handleMutate(w http.ResponseWriter, r *http.Request) {
 		if len(patches) > 0 {
 			patchBytes, err := json.Marshal(patches)
 			if err != nil {
-				logger.WithError(err).Error("Failed to marshal patches")
+				logger.WithContext(ctx).Error(err, "Failed to marshal patches")
 				response.Response.Allowed = false
 				response.Response.Result = &metav1.Status{
 					Code:    http.StatusInternalServerError,
@@ -282,17 +286,18 @@ func (ws *WebhookServer) handleMutate(w http.ResponseWriter, r *http.Request) {
 					pt := admissionv1.PatchTypeJSONPatch
 					return &pt
 				}()
-				logger.V(4).Infof("JobFlow mutation succeeded with %d patches", len(patches))
+				logger.WithContext(ctx).Debug("JobFlow mutation succeeded",
+					logging.Int("patches", len(patches)))
 			}
 		} else {
-			logger.V(4).Info("JobFlow mutation succeeded (no patches needed)")
+			logger.WithContext(ctx).Debug("JobFlow mutation succeeded (no patches needed)")
 		}
 	}
 
 	// Send response
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(response); err != nil {
-		logger.WithError(err).Error("Failed to encode admission review response")
+		logger.WithContext(ctx).Error(err, "Failed to encode admission review response")
 		http.Error(w, fmt.Sprintf("Failed to encode response: %v", err), http.StatusInternalServerError)
 		return
 	}
