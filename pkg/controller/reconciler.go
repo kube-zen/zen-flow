@@ -23,6 +23,7 @@ import (
 	"strings"
 	"time"
 
+	"go.uber.org/zap"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -33,7 +34,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-	"go.uber.org/zap"
 
 	"github.com/kube-zen/zen-flow/pkg/api/v1alpha1"
 	"github.com/kube-zen/zen-flow/pkg/controller/dag"
