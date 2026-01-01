@@ -3,7 +3,7 @@ module github.com/kube-zen/zen-flow
 go 1.24
 
 require (
-	github.com/go-logr/logr v1.4.2
+	github.com/go-logr/logr v1.4.3
 	github.com/kube-zen/zen-sdk v0.2.3-alpha
 	github.com/prometheus/client_golang v1.19.1
 	go.uber.org/zap v1.27.0
