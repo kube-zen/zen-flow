@@ -98,20 +98,8 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
-	// Initialize OpenTelemetry tracing using SDK
-	if shutdown, err := observability.InitWithDefaults(ctx, "zen-flow"); err != nil {
-		setupLog.Warn("OpenTelemetry tracer initialization failed, continuing without tracing",
-			sdklog.String("error", err.Error()),
-			sdklog.ErrorCode("OTEL_INIT_FAILED"),
-		)
-	} else {
-		setupLog.Info("OpenTelemetry tracing initialized")
-		defer func() {
-			if err := shutdown(ctx); err != nil {
-				setupLog.Warn("Failed to shutdown tracing", sdklog.String("error", err.Error()))
-			}
-		}()
-	}
+	// OpenTelemetry tracing initialization can be added here when zen-sdk/pkg/observability is available
+	// For now, continue without tracing
 
 	// Build config for Kubernetes client (needed for event recorder)
 	cfg, err := buildConfig(*masterURL, *kubeconfig)
