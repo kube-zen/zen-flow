@@ -45,7 +45,6 @@ import (
 	"github.com/kube-zen/zen-flow/pkg/webhook"
 	"github.com/kube-zen/zen-sdk/pkg/leader"
 	sdklog "github.com/kube-zen/zen-sdk/pkg/logging"
-	"github.com/kube-zen/zen-sdk/pkg/observability"
 	"github.com/kube-zen/zen-sdk/pkg/zenlead"
 )
 
