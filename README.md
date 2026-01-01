@@ -1,5 +1,21 @@
 # zen-flow
 
+Kubernetes controller for managing workflow execution flows.
+
+## Overview
+
+`zen-flow` is a Kubernetes controller that manages workflow execution flows, ensuring proper sequencing and error handling for complex operations.
+
+## Dependencies
+
+This component uses `zen-sdk` for unified observability and infrastructure:
+
+- **`zen-sdk/pkg/logging`** - Structured, context-aware logging
+- **`zen-sdk/pkg/observability`** - OpenTelemetry distributed tracing
+- **`zen-sdk/pkg/leader`** - Kubernetes leader election
+
+See [zen-sdk README](../../zen-sdk/README.md) for more information about the SDK packages.
+
 [![Version](https://img.shields.io/badge/version-0.0.1--alpha-blue)](https://github.com/kube-zen/zen-flow)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
 [![CI](https://github.com/kube-zen/zen-flow/workflows/CI/badge.svg)](https://github.com/kube-zen/zen-flow/actions)
@@ -47,10 +63,7 @@ helm install zen-flow zen-flow/zen-flow \
   --create-namespace
 ```
 
-**Alternative**: Install from local chart during development:
-```bash
-helm install zen-flow ./charts/zen-flow --namespace zen-flow-system --create-namespace
-```
+**Note**: The Helm chart is maintained in the centralized [helm-charts](https://github.com/kube-zen/helm-charts) repository.
 
 **Note**: Webhooks are disabled by default for safe installation. See [Enabling Webhooks](#enabling-webhooks) below.
 
@@ -159,7 +172,7 @@ Webhooks are disabled by default for safe installation. To enable:
 kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.13.0/cert-manager.yaml
 
 # Upgrade Helm release with webhooks enabled
-helm upgrade zen-flow ./charts/zen-flow \
+helm upgrade zen-flow zen-flow/zen-flow \
   --namespace zen-flow-system \
   --set webhook.enabled=true \
   --set webhook.certManager.enabled=true \
@@ -172,7 +185,7 @@ helm upgrade zen-flow ./charts/zen-flow \
 
 ```bash
 # Enable webhooks with Ignore failure policy (safe for dev)
-helm upgrade zen-flow ./charts/zen-flow \
+helm upgrade zen-flow zen-flow/zen-flow \
   --namespace zen-flow-system \
   --set webhook.enabled=true \
   --set webhook.failurePolicy=Ignore
@@ -330,7 +343,7 @@ status:
 - **Helm Chart Repository**: `https://kube-zen.github.io/zen-flow/charts`
   - Chart version: `0.0.1-alpha`
   - App version: `0.0.1-alpha`
-- **CRDs**: Included in chart (`charts/zen-flow/crds/`) or available in `deploy/crds/`
+- **CRDs**: Included in chart (available in helm-charts repository) or available in `deploy/crds/`
 
 ## Development
 

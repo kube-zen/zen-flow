@@ -21,6 +21,7 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
@@ -35,7 +36,6 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
-	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
@@ -44,11 +44,15 @@ import (
 	"github.com/kube-zen/zen-flow/pkg/controller/metrics"
 	"github.com/kube-zen/zen-flow/pkg/webhook"
 	"github.com/kube-zen/zen-sdk/pkg/leader"
+	sdklog "github.com/kube-zen/zen-sdk/pkg/logging"
+	"github.com/kube-zen/zen-sdk/pkg/observability"
 	"github.com/kube-zen/zen-sdk/pkg/zenlead"
 )
 
 var (
-	scheme = runtime.NewScheme()
+	scheme   = runtime.NewScheme()
+	logger   *sdklog.Logger
+	setupLog *sdklog.Logger
 )
 
 func init() {
@@ -85,17 +89,36 @@ var (
 
 //nolint:gocyclo // main function complexity is acceptable for initialization logic
 func main() {
-	klog.InitFlags(nil)
 	flag.Parse()
+
+	// Initialize zen-sdk logger (configures controller-runtime logger automatically)
+	logger = sdklog.NewLogger("zen-flow")
+	setupLog = logger.WithComponent("setup")
 
 	// Set up signals so we handle shutdown gracefully
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
+	// Initialize OpenTelemetry tracing using SDK
+	if shutdown, err := observability.InitWithDefaults(ctx, "zen-flow"); err != nil {
+		setupLog.Warn("OpenTelemetry tracer initialization failed, continuing without tracing",
+			sdklog.String("error", err.Error()),
+			sdklog.ErrorCode("OTEL_INIT_FAILED"),
+		)
+	} else {
+		setupLog.Info("OpenTelemetry tracing initialized")
+		defer func() {
+			if err := shutdown(ctx); err != nil {
+				setupLog.Warn("Failed to shutdown tracing", sdklog.String("error", err.Error()))
+			}
+		}()
+	}
+
 	// Build config for Kubernetes client (needed for event recorder)
 	cfg, err := buildConfig(*masterURL, *kubeconfig)
 	if err != nil {
-		klog.Fatalf("Error building kubeconfig: %v", err)
+		setupLog.Error(err, "Error building kubeconfig", sdklog.ErrorCode("CONFIG_ERROR"))
+		os.Exit(1)
 	}
 
 	// Apply REST config defaults (via zen-sdk helper)
@@ -104,7 +127,8 @@ func main() {
 	// Create Kubernetes client for event recorder
 	kubeClient, err := kubernetes.NewForConfig(cfg)
 	if err != nil {
-		klog.Fatalf("Error building Kubernetes client: %v", err)
+		setupLog.Error(err, "Error building Kubernetes client", sdklog.ErrorCode("CLIENT_ERROR"))
+		os.Exit(1)
 	}
 
 	// Create metrics recorder
@@ -126,7 +150,8 @@ func main() {
 	var leConfig zenlead.LeaderElectionConfig
 	namespace, err := leader.RequirePodNamespace()
 	if err != nil {
-		klog.Fatalf("Failed to determine pod namespace: %v", err)
+		setupLog.Error(err, "Failed to determine pod namespace", sdklog.ErrorCode("NAMESPACE_ERROR"))
+		os.Exit(1)
 	}
 
 	// Determine election ID (default if not provided)
@@ -137,37 +162,40 @@ func main() {
 
 	// Configure based on mode
 	switch *leaderElectionMode {
-	case "builtin":
-		leConfig = zenlead.LeaderElectionConfig{
-			Mode:       zenlead.BuiltIn,
-			ElectionID: electionID,
-			Namespace:  namespace,
+		case "builtin":
+			leConfig = zenlead.LeaderElectionConfig{
+				Mode:       zenlead.BuiltIn,
+				ElectionID: electionID,
+				Namespace:  namespace,
+			}
+			setupLog.Info("Leader election mode: builtin (Profile B)", sdklog.Operation("leader_election_config"))
+		case "zenlead":
+			if *leaderElectionLeaseName == "" {
+				setupLog.Error(fmt.Errorf("--leader-election-lease-name is required when --leader-election-mode=zenlead"), "invalid configuration", sdklog.ErrorCode("INVALID_CONFIG"))
+				os.Exit(1)
+			}
+			leConfig = zenlead.LeaderElectionConfig{
+				Mode:      zenlead.ZenLeadManaged,
+				LeaseName: *leaderElectionLeaseName,
+				Namespace: namespace,
+			}
+			setupLog.Info("Leader election mode: zenlead managed (Profile C)", sdklog.Operation("leader_election_config"), sdklog.String("leaseName", *leaderElectionLeaseName))
+		case "disabled":
+			leConfig = zenlead.LeaderElectionConfig{
+				Mode: zenlead.Disabled,
+			}
+			setupLog.Warn("Leader election disabled - single replica only (unsafe if replicas > 1)", sdklog.Operation("leader_election_config"))
+		default:
+			setupLog.Error(fmt.Errorf("invalid --leader-election-mode: %q (must be builtin, zenlead, or disabled)", *leaderElectionMode), "invalid configuration", sdklog.ErrorCode("INVALID_CONFIG"))
+			os.Exit(1)
 		}
-		klog.Info("Leader election mode: builtin (Profile B)")
-	case "zenlead":
-		if *leaderElectionLeaseName == "" {
-			klog.Fatalf("--leader-election-lease-name is required when --leader-election-mode=zenlead")
-		}
-		leConfig = zenlead.LeaderElectionConfig{
-			Mode:      zenlead.ZenLeadManaged,
-			LeaseName: *leaderElectionLeaseName,
-			Namespace: namespace,
-		}
-		klog.Info("Leader election mode: zenlead managed (Profile C)", "leaseName", *leaderElectionLeaseName)
-	case "disabled":
-		leConfig = zenlead.LeaderElectionConfig{
-			Mode: zenlead.Disabled,
-		}
-		klog.Warning("Leader election disabled - single replica only (unsafe if replicas > 1)")
-	default:
-		klog.Fatalf("Invalid --leader-election-mode: %q (must be builtin, zenlead, or disabled)", *leaderElectionMode)
-	}
 
-	// Prepare manager options with leader election
-	mgrOpts, err := zenlead.PrepareManagerOptions(baseOpts, leConfig)
-	if err != nil {
-		klog.Fatalf("Failed to prepare manager options: %v", err)
-	}
+		// Prepare manager options with leader election
+		mgrOpts, err := zenlead.PrepareManagerOptions(&baseOpts, &leConfig)
+		if err != nil {
+			setupLog.Error(err, "Failed to prepare manager options", sdklog.ErrorCode("MANAGER_OPTIONS_ERROR"))
+			os.Exit(1)
+		}
 
 	// Get replica count from environment (set by Helm/Kubernetes)
 	replicaCount := 1
@@ -179,18 +207,21 @@ func main() {
 
 	// Enforce safe HA configuration
 	if err := zenlead.EnforceSafeHA(replicaCount, mgrOpts.LeaderElection); err != nil {
-		klog.Fatalf("Unsafe HA configuration: %v", err)
+		setupLog.Error(err, "Unsafe HA configuration", sdklog.ErrorCode("UNSAFE_HA_CONFIG"))
+		os.Exit(1)
 	}
 
 	mgr, err := ctrl.NewManager(cfg, mgrOpts)
 	if err != nil {
-		klog.Fatalf("Error setting up manager: %v", err)
+		setupLog.Error(err, "Error setting up manager", sdklog.ErrorCode("MANAGER_SETUP_ERROR"))
+		os.Exit(1)
 	}
 
 	// Setup controller with manager (no leader check needed - Manager handles it)
 	reconciler := controller.NewJobFlowReconciler(mgr, metricsRecorder, eventRecorder)
 	if err := controller.SetupControllerWithReconciler(mgr, *maxConcurrentReconciles, reconciler); err != nil {
-		klog.Fatalf("Error setting up controller: %v", err)
+		setupLog.Error(err, "Error setting up controller", sdklog.ErrorCode("CONTROLLER_SETUP_ERROR"))
+		os.Exit(1)
 	}
 
 	// Start metrics server
@@ -202,7 +233,8 @@ func main() {
 		var err error
 		webhookServer, err = webhook.NewWebhookServer(*webhookAddr, *webhookCertFile, *webhookKeyFile)
 		if err != nil {
-			klog.Fatalf("Error creating webhook server: %v", err)
+			setupLog.Error(err, "Error creating webhook server", sdklog.ErrorCode("WEBHOOK_CREATE_ERROR"))
+			os.Exit(1)
 		}
 
 		// Check if TLS files exist
@@ -219,35 +251,39 @@ func main() {
 			// TLS files exist, start with TLS
 			go func() {
 				if err := webhookServer.StartTLS(ctx, *webhookCertFile, *webhookKeyFile); err != nil {
-					klog.Fatalf("Error starting webhook server: %v", err)
+					setupLog.Error(err, "Error starting webhook server", sdklog.ErrorCode("WEBHOOK_START_ERROR"))
+					os.Exit(1)
 				}
 			}()
-			klog.Infof("Webhook server starting with TLS on %s", *webhookAddr)
+			setupLog.Info("Webhook server starting with TLS", sdklog.String("address", *webhookAddr), sdklog.Component("webhook"))
 		} else {
 			// TLS files missing - check if insecure mode is allowed
 			if !*insecureWebhook {
-				klog.Fatalf("Webhook TLS certificates not found (cert: %s, key: %s). TLS is required for production. Use --insecure-webhook flag only for testing.", *webhookCertFile, *webhookKeyFile)
+				setupLog.Error(fmt.Errorf("webhook TLS certificates not found (cert: %s, key: %s). TLS is required for production. Use --insecure-webhook flag only for testing", *webhookCertFile, *webhookKeyFile), "TLS certificates missing", sdklog.ErrorCode("TLS_CERT_MISSING"))
+				os.Exit(1)
 			}
-			klog.Warningf("Webhook starting without TLS (insecure mode) - NOT RECOMMENDED FOR PRODUCTION")
+			setupLog.Warn("Webhook starting without TLS (insecure mode) - NOT RECOMMENDED FOR PRODUCTION", sdklog.Component("webhook"))
 			go func() {
 				if err := webhookServer.Start(ctx); err != nil {
-					klog.Fatalf("Error starting webhook server: %v", err)
+					setupLog.Error(err, "Error starting webhook server", sdklog.ErrorCode("WEBHOOK_START_ERROR"))
+					os.Exit(1)
 				}
 			}()
 		}
 	}
 
 	// Start manager (handles leader election, cache sync, and controller lifecycle)
-	klog.Info("Starting controller-runtime manager...")
+	setupLog.Info("Starting controller-runtime manager", sdklog.Operation("start"))
 	go func() {
 		if err := mgr.Start(ctx); err != nil {
-			klog.Fatalf("Error starting manager: %v", err)
+			setupLog.Error(err, "Error starting manager", sdklog.ErrorCode("MANAGER_START_ERROR"))
+			os.Exit(1)
 		}
 	}()
 
 	// Wait for shutdown signal
 	<-ctx.Done()
-	klog.Info("Shutdown signal received, initiating graceful shutdown...")
+	setupLog.Info("Shutdown signal received, initiating graceful shutdown", sdklog.Operation("shutdown"))
 
 	// Manager shutdown is handled automatically via context cancellation
 	// No explicit Stop() call needed - controller-runtime handles graceful shutdown
@@ -255,7 +291,7 @@ func main() {
 	// Webhook server shutdown is handled automatically via context cancellation
 	// No explicit Stop() call needed
 
-	klog.Info("zen-flow controller shutdown complete")
+	setupLog.Info("zen-flow controller shutdown complete", sdklog.Operation("shutdown"))
 }
 
 // buildConfig builds a Kubernetes config from the given master URL and kubeconfig path.
@@ -299,8 +335,10 @@ func startMetricsServer(addr string, mgr ctrl.Manager) {
 		WriteTimeout: 10 * time.Second,
 	}
 
-	klog.Infof("Starting metrics server on %s", addr)
+	serverLogger := logger.WithComponent("metrics-server")
+	serverLogger.Info("Starting metrics server", sdklog.String("address", addr))
 	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		klog.Fatalf("Error starting metrics server: %v", err)
+		serverLogger.Error(err, "Error starting metrics server", sdklog.ErrorCode("METRICS_SERVER_ERROR"))
+		os.Exit(1)
 	}
 }
