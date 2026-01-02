@@ -428,9 +428,14 @@ func ValidateStepName(name string) error {
 		return ErrEmptyStepName
 	}
 
-	// Use zen-sdk validation for Kubernetes resource name validation with whitespace check
-	if err := sdkvalidation.ValidateNameWithWhitespaceCheck(name); err != nil {
-		return fmt.Errorf("invalid step name %q: %w", name, err)
+	// Check for leading/trailing whitespace
+	if strings.TrimSpace(name) != name {
+		return fmt.Errorf("invalid step name %q: name contains leading or trailing whitespace", name)
+	}
+
+	// Validate DNS-1123 subdomain format (allows dots)
+	if errs := validation.IsDNS1123Subdomain(name); len(errs) > 0 {
+		return fmt.Errorf("invalid step name %q: %s", name, strings.Join(errs, ", "))
 	}
 
 	return nil
