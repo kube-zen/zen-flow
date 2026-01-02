@@ -139,7 +139,9 @@ func (f *fakeManager) AddReadyzCheck(name string, check healthz.Checker) error {
 }
 
 func (f *fakeManager) GetWebhookServer() webhook.Server {
-	panic("not implemented")
+	// Return a minimal fake webhook server
+	// In tests, webhook server is not used
+	return &fakeWebhookServer{}
 }
 
 func (f *fakeManager) GetLogger() logr.Logger {
@@ -165,25 +167,88 @@ func (f *fakeEventRecorder) AnnotatedEventf(object runtime.Object, annotations m
 type fakeRESTMapper struct{}
 
 func (f *fakeRESTMapper) KindFor(resource schema.GroupVersionResource) (schema.GroupVersionKind, error) {
-	panic("not implemented")
+	// Return a minimal GVR for testing
+	return schema.GroupVersionKind{
+		Group:   resource.Group,
+		Version: resource.Version,
+		Kind:    resource.Resource,
+	}, nil
 }
+
 func (f *fakeRESTMapper) KindsFor(resource schema.GroupVersionResource) ([]schema.GroupVersionKind, error) {
-	panic("not implemented")
+	// Return a single kind
+	gvk, _ := f.KindFor(resource)
+	return []schema.GroupVersionKind{gvk}, nil
 }
+
 func (f *fakeRESTMapper) ResourceFor(input schema.GroupVersionResource) (schema.GroupVersionResource, error) {
-	panic("not implemented")
+	// Return the input as-is
+	return input, nil
 }
+
 func (f *fakeRESTMapper) ResourcesFor(input schema.GroupVersionResource) ([]schema.GroupVersionResource, error) {
-	panic("not implemented")
+	// Return a single resource
+	return []schema.GroupVersionResource{input}, nil
 }
+
 func (f *fakeRESTMapper) RESTMapping(gk schema.GroupKind, versions ...string) (*meta.RESTMapping, error) {
-	panic("not implemented")
+	// Return a minimal RESTMapping for testing
+	version := "v1"
+	if len(versions) > 0 {
+		version = versions[0]
+	}
+	return &meta.RESTMapping{
+		Resource: schema.GroupVersionResource{
+			Group:    gk.Group,
+			Version:  version,
+			Resource: gk.Kind,
+		},
+		GroupVersionKind: schema.GroupVersionKind{
+			Group:   gk.Group,
+			Version: version,
+			Kind:    gk.Kind,
+		},
+		Scope: meta.RESTScopeNamespace,
+	}, nil
 }
+
 func (f *fakeRESTMapper) RESTMappings(gk schema.GroupKind, versions ...string) ([]*meta.RESTMapping, error) {
-	panic("not implemented")
+	// Return a single mapping
+	mapping, _ := f.RESTMapping(gk, versions...)
+	return []*meta.RESTMapping{mapping}, nil
 }
+
 func (f *fakeRESTMapper) ResourceSingularizer(resource string) (singular string, err error) {
-	panic("not implemented")
+	// Simple singularizer - remove trailing 's' if present
+	if len(resource) > 1 && resource[len(resource)-1] == 's' {
+		return resource[:len(resource)-1], nil
+	}
+	return resource, nil
+}
+
+// fakeFieldIndexer implements client.FieldIndexer for testing
+type fakeFieldIndexer struct {
+	client client.Client
+}
+
+func (f *fakeFieldIndexer) IndexField(ctx context.Context, obj client.Object, field string, extractValue client.IndexerFunc) error {
+	// Field indexing is not used in tests
+	return nil
+}
+
+// fakeWebhookServer implements webhook.Server for testing
+type fakeWebhookServer struct{}
+
+func (f *fakeWebhookServer) Register(validator webhook.Validator, mutator webhook.CustomDefaulter) error {
+	return nil
+}
+
+func (f *fakeWebhookServer) Start(ctx context.Context) error {
+	return nil
+}
+
+func (f *fakeWebhookServer) NeedLeaderElection() bool {
+	return false
 }
 
 func TestNewJobFlowReconciler(t *testing.T) {
