@@ -1,12 +1,12 @@
 module github.com/kube-zen/zen-flow
 
-go 1.24.0
-
-toolchain go1.24.3
+go 1.25.0
 
 require (
+	github.com/PaesslerAG/jsonpath v0.1.1
 	github.com/go-logr/logr v1.4.3
 	github.com/kube-zen/zen-sdk v0.2.7-alpha.0.20260102082809-2d16d26ac091
+	github.com/minio/minio-go/v7 v7.0.97
 	github.com/prometheus/client_golang v1.19.1
 	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/api v0.31.0
@@ -17,7 +17,6 @@ require (
 
 require (
 	github.com/PaesslerAG/gval v1.0.0 // indirect
-	github.com/PaesslerAG/jsonpath v0.1.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
@@ -49,7 +48,6 @@ require (
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/minio/crc64nvme v1.1.0 // indirect
 	github.com/minio/md5-simd v1.1.2 // indirect
-	github.com/minio/minio-go/v7 v7.0.97 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
