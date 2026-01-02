@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Go 1.25 Upgrade**: Upgraded to Go 1.25.0 for improved performance and new features
+
 ### Fixed
 - **Helm chart defaults**: Webhooks disabled by default for safe installation without prerequisites
 - **Helm RBAC**: Added delete permissions for jobflows and jobs to match controller behavior
