@@ -121,3 +121,84 @@ spec:
             description: >
               95th percentile reconciliation duration is high ({{ $value }}s).
               This may indicate controller performance issues.
+        # Alert on webhook certificate expiration (within 30 days)
+        - alert: ZenFlowWebhookCertificateExpiringSoon
+          expr: >
+            (certmanager_certificate_expiration_timestamp_seconds{namespace="zen-flow-system",name="zen-flow-webhook-cert"} - time()) / 86400 < 30
+          for: 1h
+          labels:
+            severity: warning
+            component: zen-flow-controller
+          annotations:
+            summary: "Webhook certificate expiring soon"
+            description: >
+              Webhook certificate for zen-flow-controller will expire in {{ $value }} days.
+              Ensure cert-manager is configured to automatically renew certificates.
+        # Alert on webhook certificate expired
+        - alert: ZenFlowWebhookCertificateExpired
+          expr: >
+            certmanager_certificate_expiration_timestamp_seconds{namespace="zen-flow-system",name="zen-flow-webhook-cert"} < time()
+          for: 5m
+          labels:
+            severity: critical
+            component: zen-flow-controller
+          annotations:
+            summary: "Webhook certificate has expired"
+            description: >
+              Webhook certificate for zen-flow-controller has expired.
+              Webhooks will fail until certificate is renewed.
+              Check cert-manager status: kubectl get certificate -n zen-flow-system
+        # Alert on webhook certificate not found
+        - alert: ZenFlowWebhookCertificateNotFound
+          expr: >
+            absent(certmanager_certificate_expiration_timestamp_seconds{namespace="zen-flow-system",name="zen-flow-webhook-cert"})
+          for: 10m
+          labels:
+            severity: warning
+            component: zen-flow-controller
+          annotations:
+            summary: "Webhook certificate not found"
+            description: >
+              Webhook certificate for zen-flow-controller not found in cert-manager.
+              Check if cert-manager is installed and certificate resource exists.
+              Verify: kubectl get certificate -n zen-flow-system
+        # Alert on high API server call rate
+        - alert: ZenFlowHighAPIServerCallRate
+          expr: >
+            rate(zen_flow_api_server_calls_total[5m]) > 100
+          for: 10m
+          labels:
+            severity: warning
+            component: zen-flow-controller
+          annotations:
+            summary: "High API server call rate detected"
+            description: >
+              zen-flow Controller is making {{ $value }} API server calls per second.
+              This may indicate high reconciliation load or inefficient API usage.
+        # Alert on high DAG computation time
+        - alert: ZenFlowHighDAGComputationTime
+          expr: >
+            histogram_quantile(0.95,
+            rate(zen_flow_dag_computation_duration_seconds_bucket[5m])) > 1
+          for: 10m
+          labels:
+            severity: warning
+            component: zen-flow-controller
+          annotations:
+            summary: "High DAG computation time detected"
+            description: >
+              95th percentile DAG computation time is high ({{ $value }}s).
+              Consider optimizing JobFlow DAG complexity or increasing resources.
+        # Alert on high queue depth
+        - alert: ZenFlowHighQueueDepth
+          expr: >
+            zen_flow_step_execution_queue_depth > 100
+          for: 10m
+          labels:
+            severity: warning
+            component: zen-flow-controller
+          annotations:
+            summary: "High step execution queue depth"
+            description: >
+              Step execution queue depth is {{ $value }}.
+              Consider increasing --max-concurrent-reconciles or optimizing step dependencies.
