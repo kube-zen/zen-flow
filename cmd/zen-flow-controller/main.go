@@ -24,9 +24,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"os/signal"
 	"strconv"
-	"syscall"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -44,6 +42,7 @@ import (
 	"github.com/kube-zen/zen-flow/pkg/controller/metrics"
 	"github.com/kube-zen/zen-flow/pkg/webhook"
 	"github.com/kube-zen/zen-sdk/pkg/leader"
+	sdklifecycle "github.com/kube-zen/zen-sdk/pkg/lifecycle"
 	sdklog "github.com/kube-zen/zen-sdk/pkg/logging"
 	"github.com/kube-zen/zen-sdk/pkg/zenlead"
 )
@@ -94,8 +93,8 @@ func main() {
 	logger = sdklog.NewLogger("zen-flow")
 	setupLog = logger.WithComponent("setup")
 
-	// Set up signals so we handle shutdown gracefully
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	// Set up signals so we handle shutdown gracefully using zen-sdk lifecycle
+	ctx, cancel := sdklifecycle.ShutdownContext(context.Background(), "zen-flow")
 	defer cancel()
 
 	// OpenTelemetry tracing initialization can be added here when zen-sdk/pkg/observability is available

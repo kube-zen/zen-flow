@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/PaesslerAG/jsonpath"
 	corev1 "k8s.io/api/core/v1"
@@ -57,14 +58,41 @@ func (r *JobFlowReconciler) resolveParameter(ctx context.Context, jobFlow *v1alp
 
 	// Resolve from JSONPath (from previous step outputs)
 	if valueFrom.JSONPath != "" {
-		// JSONPath should reference a previous step's output
-		// Format: "stepName:$.jsonpath" or just "$.jsonpath" (from current step)
-		// For now, assume it's from a previous step's job status
-		// TODO: Support explicit step name in JSONPath (e.g., "step1:$.status.succeeded")
-		return "", jferrors.New("jsonpath_step_not_specified", "JSONPath parameter requires step name - use extractParameterFromJobOutput instead")
+		// JSONPath format: "stepName:$.jsonpath" or "$.jsonpath" (from current step)
+		// Check if step name is explicitly specified
+		stepName, jsonPathExpr := r.parseJSONPathWithStepName(valueFrom.JSONPath)
+		if stepName != "" {
+			// Step name is specified, extract from that step's job output
+			return r.extractParameterFromJobOutput(ctx, jobFlow, stepName, jsonPathExpr)
+		}
+		// No step name specified - this requires context about which step we're in
+		// For now, return error asking for explicit step name
+		return "", jferrors.New("jsonpath_step_not_specified", "JSONPath parameter requires step name in format 'stepName:$.jsonpath' - use extractParameterFromJobOutput instead")
 	}
 
 	return "", jferrors.New("parameter_source_invalid", fmt.Sprintf("parameter %s has invalid valueFrom configuration", param.Name))
+}
+
+// parseJSONPathWithStepName parses a JSONPath string that may include a step name prefix.
+// Format: "stepName:$.jsonpath" or "$.jsonpath"
+// Returns: (stepName, jsonPathExpr)
+// If no step name is found, returns ("", originalString)
+func (r *JobFlowReconciler) parseJSONPathWithStepName(jsonPathStr string) (string, string) {
+	// Check if the string contains a colon followed by $ (indicating stepName:$.jsonpath format)
+	// We look for the pattern: stepName:$.jsonpath
+	colonIndex := strings.Index(jsonPathStr, ":")
+	if colonIndex > 0 && colonIndex < len(jsonPathStr)-1 {
+		// Check if the part after colon starts with $ (JSONPath indicator)
+		afterColon := jsonPathStr[colonIndex+1:]
+		if strings.HasPrefix(strings.TrimSpace(afterColon), "$") {
+			// Format is "stepName:$.jsonpath"
+			stepName := strings.TrimSpace(jsonPathStr[:colonIndex])
+			jsonPathExpr := strings.TrimSpace(afterColon)
+			return stepName, jsonPathExpr
+		}
+	}
+	// No step name prefix found, return empty step name and original string
+	return "", jsonPathStr
 }
 
 // resolveParameterFromConfigMap resolves a parameter from a ConfigMap
@@ -127,15 +155,8 @@ func (r *JobFlowReconciler) extractParameterFromJobOutput(ctx context.Context, j
 		return "", jferrors.Wrapf(err, "job_get_failed", "failed to get Job for step %s", stepName)
 	}
 
-	// Get job output (from logs or status)
-	// In a real implementation, this would:
-	// 1. Get job logs or status
-	// 2. Parse as JSON
-	// 3. Apply JSONPath expression
-	// 4. Extract value
-
-	// For now, we'll use a simple implementation that checks job status
-	// TODO: Implement full JSONPath evaluation
+	// Extract parameter from job status using JSONPath
+	// Full JSONPath evaluation is implemented via evaluateJSONPath function
 	logger.Debug("Extracting parameter from job output using JSONPath",
 		sdklog.String("step", stepName),
 		sdklog.String("jsonpath", jsonPath))

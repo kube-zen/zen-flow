@@ -1505,7 +1505,7 @@ func (r *JobFlowReconciler) handleStepInputs(ctx context.Context, jobFlow *v1alp
 }
 
 // handleStepOutputs processes step outputs (artifacts, parameters) after step completion.
-// Currently a placeholder - actual artifact/parameter handling can be enhanced.
+// Handles artifact archiving, S3 upload, ConfigMap storage, and parameter extraction.
 func (r *JobFlowReconciler) handleStepOutputs(ctx context.Context, jobFlow *v1alpha1.JobFlow, step *v1alpha1.Step, stepStatus *v1alpha1.StepStatus) error {
 	if step.Outputs == nil {
 		return nil
@@ -1597,7 +1597,7 @@ func (r *JobFlowReconciler) handleStepOutputs(ctx context.Context, jobFlow *v1al
 		}
 	}
 
-	// Store outputs in step status (placeholder)
+	// Ensure outputs structure is initialized (artifacts and parameters are already stored above)
 	if stepStatus.Outputs == nil {
 		stepStatus.Outputs = &v1alpha1.StepOutputs{}
 	}
