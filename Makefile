@@ -290,8 +290,10 @@ validate-local-install:
 	@kubectl apply -f deploy/crds/workflow.kube-zen.io_jobflows.yaml || exit 1
 	@echo "Verifying CRD installation..."
 	@kubectl get crd jobflows.workflow.kube-zen.io || exit 1
-	@echo "Installing Helm chart..."
-	@helm install zen-flow ./charts/zen-flow --namespace zen-flow-system --create-namespace --wait --timeout 5m || exit 1
+	@echo "Installing from helm-charts repository..."
+	@helm repo add kube-zen https://kube-zen.github.io/helm-charts || true
+	@helm repo update
+	@helm install zen-flow kube-zen/zen-flow --namespace zen-flow-system --create-namespace --wait --timeout 5m || exit 1
 	@echo "Verifying controller pod..."
 	@kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=zen-flow -n zen-flow-system --timeout=300s || echo "⚠️  Controller pod may not be ready yet"
 	@echo "✅ Local installation validated"
@@ -357,46 +359,8 @@ validate-local-all: validate-local-prereqs validate-local-build validate-local-c
 	@echo "✅ All local-first delivery gates passed!"
 	@echo "   Ready for shared cluster deployment"
 
-# Helm chart operations
-helm-lint:
-	@echo "Linting Helm chart..."
-	@if ! command -v helm >/dev/null 2>&1; then \
-		echo "❌ Helm not found. Install from https://helm.sh/docs/intro/install/"; \
-		exit 1; \
-	fi
-	helm lint charts/zen-flow
-	@echo "✅ Helm chart linting passed"
-
-helm-package:
-	@echo "Packaging Helm chart..."
-	@if ! command -v helm >/dev/null 2>&1; then \
-		echo "❌ Helm not found. Install from https://helm.sh/docs/intro/install/"; \
-		exit 1; \
-	fi
-	@mkdir -p .helm-packages
-	helm package charts/zen-flow -d .helm-packages
-	@echo "✅ Helm chart packaged in .helm-packages/"
-
-helm-test:
-	@echo "Testing Helm chart rendering..."
-	@if ! command -v helm >/dev/null 2>&1; then \
-		echo "❌ Helm not found. Install from https://helm.sh/docs/intro/install/"; \
-		exit 1; \
-	fi
-	helm template zen-flow charts/zen-flow --debug > /dev/null
-	@echo "✅ Helm chart renders successfully"
-
-helm-install:
-	@echo "Installing Helm chart (dry-run)..."
-	@if ! command -v helm >/dev/null 2>&1; then \
-		echo "❌ Helm not found. Install from https://helm.sh/docs/intro/install/"; \
-		exit 1; \
-	fi
-	helm install zen-flow charts/zen-flow --dry-run --debug --namespace zen-flow-system --create-namespace
-	@echo "✅ Helm chart installation dry-run successful"
-
-helm-all: helm-lint helm-test helm-package
-	@echo "✅ All Helm operations completed"
+# Helm charts are now in the helm-charts repository
+# See: https://github.com/kube-zen/helm-charts
 
 
 check:
