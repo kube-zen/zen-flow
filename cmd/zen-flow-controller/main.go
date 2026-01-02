@@ -221,13 +221,8 @@ func main() {
 				syncCtx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 				defer cancel()
 				synced := cache.WaitForCacheSync(syncCtx)
-				// synced is a map[string]bool - check if all are true
-				for _, v := range synced {
-					if !v {
-						return false
-					}
-				}
-				return true
+				// WaitForCacheSync returns bool - true if all caches synced
+				return synced
 			},
 		}
 	})
