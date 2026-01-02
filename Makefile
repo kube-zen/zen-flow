@@ -202,6 +202,23 @@ test-load:
 	@go test -v -timeout=30m ./test/load/... || (echo "⚠️  Load tests failed or skipped"; exit 0)
 	@echo "✅ Load tests completed"
 
+# Generate OpenAPI/Swagger documentation
+generate-openapi:
+	@echo "Generating OpenAPI specification..."
+	@./scripts/generate-openapi.sh
+	@echo "✅ OpenAPI specification generated in docs/openapi/"
+
+# Serve Swagger UI (requires generate-openapi first)
+serve-swagger: generate-openapi
+	@echo "Starting Swagger UI server..."
+	@echo "⚠️  Install swagger-ui: npm install -g swagger-ui-serve"
+	@if command -v swagger-ui-serve >/dev/null 2>&1; then \
+		swagger-ui-serve docs/openapi/openapi.yaml; \
+	else \
+		echo "⚠️  swagger-ui-serve not found. Install with: npm install -g swagger-ui-serve"; \
+		echo "   Or use: docker run -p 8080:8080 -e SWAGGER_JSON=/openapi.yaml -v \$$(pwd)/docs/openapi:/usr/share/nginx/html swaggerapi/swagger-ui"; \
+	fi
+
 # Validate example manifests
 validate-examples:
 	@echo "Validating example manifests..."

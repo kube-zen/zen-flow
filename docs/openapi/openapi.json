@@ -1,0 +1,657 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "zen-flow API",
+    "description": "Kubernetes CRD API for zen-flow - A declarative workflow orchestrator for Kubernetes Jobs.\n\nzen-flow provides a Kubernetes Custom Resource Definition (CRD) that allows you to define\nworkflows of Kubernetes Jobs executed in a directed acyclic graph (DAG) order.\n\n## Features\n- Sequential and parallel job execution\n- DAG-based dependency management\n- Retry policies with exponential backoff\n- Manual approval steps\n- Artifact and parameter passing between steps\n- Resource template support (PVCs, ConfigMaps)\n- TTL and cleanup policies",
+    "version": "v1alpha1",
+    "contact": {
+      "name": "Kube-ZEN",
+      "url": "https://github.com/kube-zen/zen-flow"
+    },
+    "license": {
+      "name": "Apache 2.0",
+      "url": "https://www.apache.org/licenses/LICENSE-2.0"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://kubernetes.default.svc",
+      "description": "Kubernetes API Server"
+    }
+  ],
+  "tags": [
+    {
+      "name": "JobFlow",
+      "description": "JobFlow CRD operations"
+    }
+  ],
+  "paths": {
+    "/apis/workflow.kube-zen.io/v1alpha1/namespaces/{namespace}/jobflows": {
+      "get": {
+        "tags": [
+          "JobFlow"
+        ],
+        "summary": "List JobFlows",
+        "description": "List all JobFlows in a namespace",
+        "operationId": "listJobFlows",
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Namespace name"
+          },
+          {
+            "name": "labelSelector",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Label selector for filtering"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobFlowList"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "JobFlow"
+        ],
+        "summary": "Create JobFlow",
+        "description": "Create a new JobFlow",
+        "operationId": "createJobFlow",
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Namespace name"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JobFlow"
+              }
+            },
+            "application/yaml": {
+              "schema": {
+                "$ref": "#/components/schemas/JobFlow"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "JobFlow created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobFlow"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/apis/workflow.kube-zen.io/v1alpha1/namespaces/{namespace}/jobflows/{name}": {
+      "get": {
+        "tags": [
+          "JobFlow"
+        ],
+        "summary": "Get JobFlow",
+        "description": "Get a specific JobFlow by name",
+        "operationId": "getJobFlow",
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobFlow"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "JobFlow"
+        ],
+        "summary": "Update JobFlow",
+        "description": "Update an existing JobFlow",
+        "operationId": "updateJobFlow",
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JobFlow"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "JobFlow updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobFlow"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "JobFlow"
+        ],
+        "summary": "Delete JobFlow",
+        "description": "Delete a JobFlow",
+        "operationId": "deleteJobFlow",
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "JobFlow deleted successfully"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "JobFlow": {
+        "type": "object",
+        "description": "JobFlow is a namespaced resource that defines a workflow of Kubernetes Jobs executed in a DAG order.",
+        "required": [
+          "apiVersion",
+          "kind",
+          "metadata",
+          "spec"
+        ],
+        "properties": {
+          "apiVersion": {
+            "type": "string",
+            "enum": [
+              "workflow.kube-zen.io/v1alpha1"
+            ]
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "JobFlow"
+            ]
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/ObjectMeta"
+          },
+          "spec": {
+            "$ref": "#/components/schemas/JobFlowSpec"
+          },
+          "status": {
+            "$ref": "#/components/schemas/JobFlowStatus"
+          }
+        }
+      },
+      "JobFlowList": {
+        "type": "object",
+        "required": [
+          "apiVersion",
+          "kind",
+          "items"
+        ],
+        "properties": {
+          "apiVersion": {
+            "type": "string",
+            "enum": [
+              "workflow.kube-zen.io/v1alpha1"
+            ]
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "JobFlowList"
+            ]
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/ListMeta"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/JobFlow"
+            }
+          }
+        }
+      },
+      "ObjectMeta": {
+        "type": "object",
+        "description": "Standard Kubernetes object metadata",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "namespace": {
+            "type": "string"
+          },
+          "labels": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "annotations": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "creationTimestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "uid": {
+            "type": "string"
+          }
+        }
+      },
+      "ListMeta": {
+        "type": "object",
+        "properties": {
+          "resourceVersion": {
+            "type": "string"
+          },
+          "continue": {
+            "type": "string"
+          }
+        }
+      },
+      "JobFlowSpec": {
+        "type": "object",
+        "required": [
+          "steps"
+        ],
+        "properties": {
+          "executionPolicy": {
+            "type": "object",
+            "properties": {
+              "concurrencyPolicy": {
+                "type": "string",
+                "enum": [
+                  "Allow",
+                  "Forbid",
+                  "Replace"
+                ],
+                "default": "Forbid"
+              },
+              "ttlSecondsAfterFinished": {
+                "type": "integer",
+                "default": 86400
+              },
+              "podFailurePolicy": {
+                "type": "object",
+                "properties": {
+                  "rules": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "action": {
+                          "type": "string",
+                          "enum": [
+                            "FailJob",
+                            "Ignore",
+                            "Count"
+                          ]
+                        },
+                        "onExitCodes": {
+                          "type": "object",
+                          "properties": {
+                            "containerName": {
+                              "type": "string"
+                            },
+                            "operator": {
+                              "type": "string",
+                              "enum": [
+                                "In",
+                                "NotIn"
+                              ]
+                            },
+                            "values": {
+                              "type": "array",
+                              "items": {
+                                "type": "integer"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "backoffLimit": {
+                "type": "integer",
+                "default": 6
+              },
+              "activeDeadlineSeconds": {
+                "type": "integer"
+              }
+            }
+          },
+          "resourceTemplates": {
+            "type": "object",
+            "properties": {
+              "volumeClaimTemplates": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "configMapTemplates": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "name",
+                "template"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "Job",
+                    "Manual"
+                  ],
+                  "default": "Job"
+                },
+                "message": {
+                  "type": "string"
+                },
+                "metadata": {
+                  "type": "object",
+                  "properties": {
+                    "annotations": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    },
+                    "labels": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                },
+                "dependencies": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "retryPolicy": {
+                  "type": "object",
+                  "properties": {
+                    "limit": {
+                      "type": "integer"
+                    },
+                    "backoff": {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "Exponential",
+                            "Linear",
+                            "Fixed"
+                          ]
+                        },
+                        "factor": {
+                          "type": "number"
+                        },
+                        "duration": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                },
+                "timeoutSeconds": {
+                  "type": "integer"
+                },
+                "when": {
+                  "type": "string"
+                },
+                "continueOnFailure": {
+                  "type": "boolean"
+                },
+                "template": {
+                  "type": "object",
+                  "x-kubernetes-preserve-unknown-fields": true
+                },
+                "inputs": {
+                  "type": "object"
+                },
+                "outputs": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      },
+      "JobFlowStatus": {
+        "type": "object",
+        "properties": {
+          "phase": {
+            "type": "string",
+            "enum": [
+              "Pending",
+              "Running",
+              "Succeeded",
+              "Failed",
+              "Suspended"
+            ]
+          },
+          "conditions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    true,
+                    false,
+                    "Unknown"
+                  ]
+                },
+                "lastTransitionTime": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "reason": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "startTime": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "completionTime": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "estimatedCompletionTime": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "phase": {
+                  "type": "string",
+                  "enum": [
+                    "Pending",
+                    "Running",
+                    "Succeeded",
+                    "Failed",
+                    "Skipped"
+                  ]
+                },
+                "startTime": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "completionTime": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "jobRef": {
+                  "type": "object"
+                },
+                "outputs": {
+                  "type": "object"
+                },
+                "retryCount": {
+                  "type": "integer"
+                },
+                "message": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "resourceRefs": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "progress": {
+            "type": "object",
+            "properties": {
+              "completedSteps": {
+                "type": "integer"
+              },
+              "totalSteps": {
+                "type": "integer"
+              },
+              "successfulSteps": {
+                "type": "integer"
+              },
+              "failedSteps": {
+                "type": "integer"
+              }
+            }
+          },
+          "audit": {
+            "type": "object"
+          }
+        }
+      }
+    }
+  }
+}
