@@ -166,3 +166,46 @@ jobs:
       - name: Validate example manifests
         run: make validate-examples
 
+  build-experimental:
+    name: Build Experimental
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      
+      - name: Install dependencies
+        run: go mod download
+      
+      - name: Update go.sum
+        run: go mod tidy
+      
+      - name: Build with experimental features
+        run: |
+          GOEXPERIMENT=jsonv2,greenteagc go build -trimpath \
+            -ldflags "-s -w" \
+            -o bin/zen-flow-controller-experimental ./cmd/zen-flow-controller
+      
+      - name: Build GA-only
+        run: |
+          go build -trimpath \
+            -ldflags "-s -w" \
+            -o bin/zen-flow-controller-ga ./cmd/zen-flow-controller
+      
+      - name: Verify binaries
+        run: |
+          echo "Experimental binary:"
+          ls -lh bin/zen-flow-controller-experimental
+          echo ""
+          echo "GA-only binary:"
+          ls -lh bin/zen-flow-controller-ga
+          echo ""
+          echo "Binary sizes:"
+          du -h bin/zen-flow-controller-*
+

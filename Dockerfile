@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:1.24-alpine AS builder
+FROM golang:1.25-alpine AS builder
 
 ARG VERSION=0.0.1-alpha
 ARG COMMIT=unknown
@@ -36,8 +36,10 @@ RUN go mod download
 # Copy source code
 COPY zen-flow/ .
 
-# Build binary
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+# Build binary with optional experimental features
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+    GOEXPERIMENT=${GOEXPERIMENT} \
+    go build \
     -trimpath \
     -ldflags "-s -w \
         -X 'main.version=${VERSION}' \

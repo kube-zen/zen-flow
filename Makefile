@@ -7,9 +7,25 @@ build:
 	@echo "✅ Build complete: bin/zen-flow-controller"
 	@ls -lh bin/zen-flow-controller | awk '{print "   Binary size: " $$5}'
 
-# Build optimized binary for production
+# Build optimized binary for production (with experimental features by default)
 build-release:
-	@echo "Building optimized zen-flow-controller binary..."
+	@echo "Building optimized zen-flow-controller binary with experimental features..."
+	@VERSION=$$(git describe --tags --always --dirty 2>/dev/null || echo "0.0.1-alpha"); \
+	COMMIT=$$(git rev-parse --short HEAD 2>/dev/null || echo "unknown"); \
+	BUILD_DATE=$$(date -u +"%Y-%m-%dT%H:%M:%SZ"); \
+	GOEXPERIMENT=jsonv2,greenteagc \
+	go build -trimpath \
+		-ldflags "-s -w \
+			-X 'main.version=$$VERSION' \
+			-X 'main.commit=$$COMMIT' \
+			-X 'main.buildDate=$$BUILD_DATE'" \
+		-o bin/zen-flow-controller ./cmd/zen-flow-controller
+	@echo "✅ Optimized build complete: bin/zen-flow-controller (with experimental features)"
+	@ls -lh bin/zen-flow-controller
+
+# Build optimized binary without experimental features (GA-only)
+build-release-ga:
+	@echo "Building optimized zen-flow-controller binary (GA-only)..."
 	@VERSION=$$(git describe --tags --always --dirty 2>/dev/null || echo "0.0.1-alpha"); \
 	COMMIT=$$(git rev-parse --short HEAD 2>/dev/null || echo "unknown"); \
 	BUILD_DATE=$$(date -u +"%Y-%m-%dT%H:%M:%SZ"); \
@@ -19,12 +35,13 @@ build-release:
 			-X 'main.commit=$$COMMIT' \
 			-X 'main.buildDate=$$BUILD_DATE'" \
 		-o bin/zen-flow-controller ./cmd/zen-flow-controller
-	@echo "✅ Optimized build complete: bin/zen-flow-controller"
+	@echo "✅ GA-only build complete: bin/zen-flow-controller"
 	@ls -lh bin/zen-flow-controller
 
 # Build Docker image (requires Docker)
+# Default: Includes experimental features (jsonv2, greenteagc) for better performance
 build-image:
-	@echo "Building Docker image..."
+	@echo "Building Docker image with experimental features (jsonv2, greenteagc)..."
 	@VERSION=$$(git describe --tags --always --dirty 2>/dev/null || echo "0.0.1-alpha"); \
 	COMMIT=$$(git rev-parse --short HEAD 2>/dev/null || echo "unknown"); \
 	BUILD_DATE=$$(date -u +"%Y-%m-%dT%H:%M:%SZ"); \
@@ -32,9 +49,40 @@ build-image:
 		--build-arg VERSION=$$VERSION \
 		--build-arg COMMIT=$$COMMIT \
 		--build-arg BUILD_DATE=$$BUILD_DATE \
+		--build-arg GOEXPERIMENT=jsonv2,greenteagc \
 		-t kubezen/zen-flow-controller:$$VERSION \
 		-t kubezen/zen-flow-controller:latest .
-	@echo "✅ Docker image built: kubezen/zen-flow-controller:$$VERSION"
+	@echo "✅ Docker image built: kubezen/zen-flow-controller:$$VERSION (with experimental features)"
+
+# Build Docker image with experimental features (explicit)
+build-image-experimental:
+	@echo "Building Docker image with experimental features (jsonv2, greenteagc)..."
+	@VERSION=$$(git describe --tags --always --dirty 2>/dev/null || echo "0.0.1-alpha"); \
+	COMMIT=$$(git rev-parse --short HEAD 2>/dev/null || echo "unknown"); \
+	BUILD_DATE=$$(date -u +"%Y-%m-%dT%H:%M:%SZ"); \
+	docker build \
+		--build-arg VERSION=$$VERSION \
+		--build-arg COMMIT=$$COMMIT \
+		--build-arg BUILD_DATE=$$BUILD_DATE \
+		--build-arg GOEXPERIMENT=jsonv2,greenteagc \
+		-t kubezen/zen-flow-controller:$$VERSION-experimental \
+		-t kubezen/zen-flow-controller:experimental .
+	@echo "✅ Experimental Docker image built: kubezen/zen-flow-controller:$$VERSION-experimental"
+
+# Build Docker image without experimental features (GA-only)
+build-image-no-experimental:
+	@echo "Building Docker image without experimental features (GA-only)..."
+	@VERSION=$$(git describe --tags --always --dirty 2>/dev/null || echo "0.0.1-alpha"); \
+	COMMIT=$$(git rev-parse --short HEAD 2>/dev/null || echo "unknown"); \
+	BUILD_DATE=$$(date -u +"%Y-%m-%dT%H:%M:%SZ"); \
+	docker build \
+		--build-arg VERSION=$$VERSION \
+		--build-arg COMMIT=$$COMMIT \
+		--build-arg BUILD_DATE=$$BUILD_DATE \
+		--build-arg GOEXPERIMENT="" \
+		-t kubezen/zen-flow-controller:$$VERSION-ga \
+		-t kubezen/zen-flow-controller:ga-only .
+	@echo "✅ GA-only Docker image built: kubezen/zen-flow-controller:$$VERSION-ga"
 
 # Build multi-arch Docker images (requires Docker Buildx)
 build-image-multiarch:
