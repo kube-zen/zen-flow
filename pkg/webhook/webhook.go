@@ -32,7 +32,7 @@ import (
 
 	"github.com/kube-zen/zen-flow/pkg/api/v1alpha1"
 	"github.com/kube-zen/zen-flow/pkg/validation"
-	"github.com/kube-zen/zen-sdk/pkg/logging"
+	sdklog "github.com/kube-zen/zen-sdk/pkg/logging"
 )
 
 var (
@@ -104,7 +104,7 @@ func NewWebhookServer(addr, certFile, keyFile string) (*WebhookServer, error) {
 
 // Start starts the webhook server without TLS (for testing).
 func (ws *WebhookServer) Start(ctx context.Context) error {
-	logger := logging.NewLogger("zen-flow-webhook").WithContext(ctx)
+	logger := sdklog.NewLogger("zen-flow-webhook")
 	logger.Info("Starting webhook server without TLS (testing mode)...")
 
 	go func() {
@@ -126,9 +126,9 @@ func (ws *WebhookServer) Start(ctx context.Context) error {
 
 // StartTLS starts the webhook server with TLS.
 func (ws *WebhookServer) StartTLS(ctx context.Context, certFile, keyFile string) error {
-	logger := logging.NewLogger("zen-flow-webhook").WithContext(ctx)
+	logger := sdklog.NewLogger("zen-flow-webhook")
 	logger.Info("Starting webhook server with TLS",
-		logging.String("address", ws.server.Addr))
+		sdklog.String("address", ws.server.Addr))
 
 	go func() {
 		<-ctx.Done()
@@ -155,8 +155,7 @@ func (ws *WebhookServer) handleValidate(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// Read admission review request
-	ctx := r.Context()
-	logger := logging.NewLogger("zen-flow-webhook").WithContext(ctx)
+	logger := sdklog.NewLogger("zen-flow-webhook")
 	var review admissionv1.AdmissionReview
 	if err := json.NewDecoder(r.Body).Decode(&review); err != nil {
 		logger.Error(err, "Failed to decode admission review")
@@ -178,7 +177,7 @@ func (ws *WebhookServer) handleValidate(w http.ResponseWriter, r *http.Request) 
 	// Validate the JobFlow
 	if err := ws.validateJobFlow(review.Request); err != nil {
 		logger.Debug("JobFlow validation failed",
-			logging.String("error", err.Error()))
+			sdklog.String("error", err.Error()))
 		response.Response.Allowed = false
 		response.Response.Result = &metav1.Status{
 			Code:    http.StatusUnprocessableEntity,
@@ -232,7 +231,7 @@ func (ws *WebhookServer) validateJobFlow(req *admissionv1.AdmissionRequest) erro
 
 // handleMutate handles admission review requests for JobFlow mutation (defaults).
 func (ws *WebhookServer) handleMutate(w http.ResponseWriter, r *http.Request) {
-	logger := logging.NewLogger("zen-flow-webhook")
+	logger := sdklog.NewLogger("zen-flow-webhook")
 
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -240,10 +239,9 @@ func (ws *WebhookServer) handleMutate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Read admission review request
-	ctx := r.Context()
 	var review admissionv1.AdmissionReview
 	if err := json.NewDecoder(r.Body).Decode(&review); err != nil {
-		logger.WithContext(ctx).Error(err, "Failed to decode admission review")
+		logger.Error(err, "Failed to decode admission review")
 		http.Error(w, fmt.Sprintf("Failed to decode request: %v", err), http.StatusBadRequest)
 		return
 	}
@@ -286,7 +284,7 @@ func (ws *WebhookServer) handleMutate(w http.ResponseWriter, r *http.Request) {
 					return &pt
 				}()
 				logger.Debug("JobFlow mutation succeeded",
-					logging.Int("patches", len(patches)))
+					sdklog.Int("patches", len(patches)))
 			}
 		} else {
 			logger.Debug("JobFlow mutation succeeded (no patches needed)")
