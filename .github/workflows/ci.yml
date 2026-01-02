@@ -44,6 +44,9 @@ jobs:
       - name: Install dependencies
         run: go mod download
       
+      - name: Update go.sum
+        run: go mod tidy
+      
       - name: Run make check
         run: make check
       
@@ -70,6 +73,9 @@ jobs:
       
       - name: Install dependencies
         run: go mod download
+      
+      - name: Update go.sum
+        run: go mod tidy
       
       - name: Run tests
         run: make test-unit
@@ -122,6 +128,9 @@ jobs:
       - name: Install dependencies
         run: go mod download
       
+      - name: Update go.sum
+        run: go mod tidy
+      
       - name: Build
         run: make build
       
@@ -147,6 +156,12 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
+      
+      - name: Install dependencies
+        run: go mod download
+      
+      - name: Update go.sum
+        run: go mod tidy
       
       - name: Validate example manifests
         run: make validate-examples
