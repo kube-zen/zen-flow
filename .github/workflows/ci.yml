@@ -81,17 +81,17 @@ jobs:
       
       - name: Check coverage threshold
         run: |
-          COVERAGE=$$(go tool cover -func=coverage.out | grep -v "pkg/api/v1alpha1" | grep "total:" | awk '{print $$3}' | sed 's/%//')
-          if [ -z "$$COVERAGE" ]; then
+          COVERAGE=$(go tool cover -func=coverage.out | grep -v "pkg/api/v1alpha1" | grep "total:" | awk '{print $3}' | sed 's/%//')
+          if [ -z "$COVERAGE" ]; then
             echo "⚠️  Could not determine coverage percentage"
             exit 0
           fi
-          echo "Coverage: $$COVERAGE%"
-          if [ $$(echo "$$COVERAGE < 75" | bc -l 2>/dev/null || echo "0") -eq 1 ]; then
-            echo "❌ Coverage $$COVERAGE% is below the 75% threshold"
+          echo "Coverage: $COVERAGE%"
+          if (( $(echo "$COVERAGE < 75" | bc -l 2>/dev/null || echo "0") )); then
+            echo "❌ Coverage $COVERAGE% is below the 75% threshold"
             exit 1
           else
-            echo "✅ Coverage $$COVERAGE% meets the 75% threshold"
+            echo "✅ Coverage $COVERAGE% meets the 75% threshold"
           fi
       
       - name: Upload coverage
