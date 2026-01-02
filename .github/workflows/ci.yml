@@ -1,0 +1,151 @@
+# Copyright 2025 Kube-ZEN Contributors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+env:
+  GO_VERSION: '1.24'
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: go.sum
+      
+      - name: Install dependencies
+        run: go mod download
+      
+      - name: Run make check
+        run: make check
+      
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          args: --timeout=5m
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: go.sum
+      
+      - name: Install dependencies
+        run: go mod download
+      
+      - name: Run tests
+        run: make test-unit
+      
+      - name: Generate coverage
+        run: |
+          go test -coverprofile=coverage.out -covermode=atomic -timeout=10m ./pkg/...
+          go tool cover -html=coverage.out -o coverage.html
+      
+      - name: Check coverage threshold
+        run: |
+          COVERAGE=$$(go tool cover -func=coverage.out | grep -v "pkg/api/v1alpha1" | grep "total:" | awk '{print $$3}' | sed 's/%//')
+          if [ -z "$$COVERAGE" ]; then
+            echo "⚠️  Could not determine coverage percentage"
+            exit 0
+          fi
+          echo "Coverage: $$COVERAGE%"
+          if [ $$(echo "$$COVERAGE < 75" | bc -l 2>/dev/null || echo "0") -eq 1 ]; then
+            echo "❌ Coverage $$COVERAGE% is below the 75% threshold"
+            exit 1
+          else
+            echo "✅ Coverage $$COVERAGE% meets the 75% threshold"
+          fi
+      
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.out
+          flags: unittests
+          name: codecov-zen-flow
+          fail_ci_if_error: false
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: go.sum
+      
+      - name: Install dependencies
+        run: go mod download
+      
+      - name: Build
+        run: make build
+      
+      - name: Verify binary
+        run: |
+          if [ ! -f bin/zen-flow-controller ]; then
+            echo "❌ Binary not found"
+            exit 1
+          fi
+          file bin/zen-flow-controller
+          ls -lh bin/zen-flow-controller
+
+  validate-examples:
+    name: Validate Examples
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      
+      - name: Validate example manifests
+        run: make validate-examples
+

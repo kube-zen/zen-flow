@@ -1,0 +1,115 @@
+# Copyright 2025 Kube-ZEN Contributors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Security
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  schedule:
+    - cron: '0 0 * * 0'  # Weekly on Sunday
+
+env:
+  GO_VERSION: '1.24'
+
+jobs:
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      security-events: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      
+      - name: Run govulncheck
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./... || true  # Don't fail CI on vulnerabilities (report only)
+      
+      - name: Run gosec
+        uses: securego/gosec@master
+        with:
+          args: '-no-fail -fmt json -out gosec-report.json ./...'
+        continue-on-error: true
+      
+      - name: Upload gosec results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gosec-report
+          path: gosec-report.json
+      
+      - name: Check for fmt.Print* usage
+        run: |
+          if [ -f "scripts/ci/check-no-fmt-print.sh" ]; then
+            scripts/ci/check-no-fmt-print.sh .
+          elif [ -f "../../scripts/ci/check-no-fmt-print.sh" ]; then
+            ../../scripts/ci/check-no-fmt-print.sh .
+          else
+            echo "⚠️  fmt.Print* check script not found, skipping"
+          fi
+        continue-on-error: true
+
+  container-scan:
+    name: Container Security Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      security-events: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ../..
+          file: zen-flow/Dockerfile
+          push: false
+          load: true
+          tags: kubezen/zen-flow-controller:scan-test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: kubezen/zen-flow-controller:scan-test
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '1'
+      
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+
