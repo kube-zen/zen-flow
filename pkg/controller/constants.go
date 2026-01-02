@@ -17,8 +17,6 @@ limitations under the License.
 package controller
 
 import (
-	"time"
-
 	"github.com/kube-zen/zen-flow/pkg/config"
 )
 
