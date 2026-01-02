@@ -32,8 +32,8 @@ func TestNewEventRecorder(t *testing.T) {
 	if recorder == nil {
 		t.Fatal("NewEventRecorder returned nil")
 	}
-	if recorder.recorder == nil {
-		t.Error("EventRecorder.recorder is nil")
+	if recorder.Recorder == nil {
+		t.Error("EventRecorder.Recorder is nil")
 	}
 }
 
@@ -43,8 +43,8 @@ func TestNewEventRecorder_NilClient(t *testing.T) {
 	if recorder == nil {
 		t.Fatal("NewEventRecorder returned nil")
 	}
-	if recorder.recorder == nil {
-		t.Error("EventRecorder.recorder is nil even with nil client")
+	if recorder.Recorder == nil {
+		t.Error("EventRecorder.Recorder is nil even with nil client")
 	}
 }
 

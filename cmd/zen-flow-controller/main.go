@@ -41,6 +41,7 @@ import (
 	"github.com/kube-zen/zen-flow/pkg/controller"
 	"github.com/kube-zen/zen-flow/pkg/controller/metrics"
 	"github.com/kube-zen/zen-flow/pkg/webhook"
+	"github.com/kube-zen/zen-sdk/pkg/health"
 	"github.com/kube-zen/zen-sdk/pkg/leader"
 	sdklifecycle "github.com/kube-zen/zen-sdk/pkg/lifecycle"
 	sdklog "github.com/kube-zen/zen-sdk/pkg/logging"
@@ -207,6 +208,40 @@ func main() {
 	reconciler := controller.NewJobFlowReconciler(mgr, metricsRecorder, eventRecorder)
 	if err := controller.SetupControllerWithReconciler(mgr, *maxConcurrentReconciles, reconciler); err != nil {
 		setupLog.Error(err, "Error setting up controller", sdklog.ErrorCode("CONTROLLER_SETUP_ERROR"))
+		os.Exit(1)
+	}
+
+	// Setup health checks using zen-sdk/pkg/health
+	// Check if Manager's cache is synced (controller-runtime provides cache for JobFlow and Job informers)
+	informerChecker := health.NewInformerSyncChecker(func() map[string]func() bool {
+		cache := mgr.GetCache()
+		return map[string]func() bool{
+			"cache": func() bool {
+				// Check if cache is synced (WaitForCacheSync returns true if all caches synced)
+				syncCtx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+				defer cancel()
+				synced := cache.WaitForCacheSync(syncCtx)
+				// synced is a map[string]bool - check if all are true
+				for _, v := range synced {
+					if !v {
+						return false
+					}
+				}
+				return true
+			},
+		}
+	})
+
+	if err := mgr.AddHealthzCheck("informer-sync", informerChecker.LivenessCheck); err != nil {
+		setupLog.Error(err, "unable to set up health check", sdklog.ErrorCode("HEALTH_CHECK_ERROR"))
+		os.Exit(1)
+	}
+	if err := mgr.AddReadyzCheck("informer-sync", informerChecker.ReadinessCheck); err != nil {
+		setupLog.Error(err, "unable to set up ready check", sdklog.ErrorCode("READY_CHECK_ERROR"))
+		os.Exit(1)
+	}
+	if err := mgr.AddHealthzCheck("startup", informerChecker.StartupCheck); err != nil {
+		setupLog.Error(err, "unable to set up startup check", sdklog.ErrorCode("STARTUP_CHECK_ERROR"))
 		os.Exit(1)
 	}
 
