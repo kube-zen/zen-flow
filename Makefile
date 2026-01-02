@@ -53,12 +53,36 @@ build-image-multiarch:
 	@echo "✅ Multi-arch Docker images built: kubezen/zen-flow-controller:$$VERSION"
 
 # Run all tests
-test: test-unit
+test: test-unit test-integration
 
 # Run unit tests
 test-unit:
 	@echo "Running unit tests..."
 	go test -v -race -coverprofile=coverage.out -covermode=atomic -timeout=10m ./pkg/...
+
+# Run integration tests
+test-integration:
+	@echo "Running integration tests..."
+	go test -v -timeout=5m ./test/integration/...
+
+# Run E2E tests (requires Kubernetes cluster)
+# Usage: make test-e2e CLUSTER_NAME=zen-flow-e2e
+test-e2e:
+	@echo "Running E2E tests..."
+	@if [ -z "$(CLUSTER_NAME)" ]; then \
+		echo "⚠️  No cluster specified. Using default or existing cluster."; \
+	fi
+	go test -v -tags=e2e -timeout=30m ./test/e2e/...
+
+# Setup E2E test cluster with kind
+test-e2e-setup:
+	@echo "Setting up E2E test cluster..."
+	@cd test/e2e && ./setup_kind.sh create
+
+# Cleanup E2E test cluster
+test-e2e-cleanup:
+	@echo "Cleaning up E2E test cluster..."
+	@cd test/e2e && ./setup_kind.sh delete
 
 # Show test coverage
 coverage: test-unit
