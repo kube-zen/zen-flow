@@ -42,3 +42,12 @@ Thumbs.db
 tmp/
 temp/
 
+# Security: Never commit credentials or tokens
+**/dockerhub*.txt
+**/*credential*.txt
+**/*token*.txt
+**/*password*.txt
+**/*secret*.txt
+**/.env
+**/.env.local
+

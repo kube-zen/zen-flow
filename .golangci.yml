@@ -60,6 +60,13 @@ issues:
     - path: zz_generated\.deepcopy\.go
       linters:
         - all
+    
+    # Prevent fmt.Print* in production code (use structured logging instead)
+    - text: "fmt\\.(Print|Printf|Println)"
+      linters:
+        - gosec
+      # Allow in test files only
+      path: "^((?!_test\\.go).)*$"
 
 output:
   formats:

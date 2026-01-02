@@ -18,9 +18,13 @@ package controller
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"math"
 	"strings"
+	"sync"
 	"time"
 
 	batchv1 "k8s.io/api/batch/v1"
@@ -52,6 +56,16 @@ type JobFlowReconciler struct {
 	Scheme          *runtime.Scheme
 	MetricsRecorder *metrics.Recorder
 	EventRecorder   *EventRecorder
+	// Optimization: Cached DAG computation (thread-safe)
+	dagCache map[string]*cachedDAG
+	dagMu    sync.RWMutex
+}
+
+// cachedDAG stores computed DAG to avoid recomputation
+type cachedDAG struct {
+	specHash    string
+	dagGraph    *dag.Graph
+	sortedSteps []string
 }
 
 // NewJobFlowReconciler creates a new JobFlowReconciler
@@ -192,11 +206,8 @@ func (r *JobFlowReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, nil
 	}
 
-	// Build DAG
-	dagGraph := dag.BuildDAG(jobFlow.Spec.Steps)
-
-	// P0.4: Check for cycles in DAG
-	sortedSteps, err := dagGraph.TopologicalSort()
+	// Build DAG (with caching optimization)
+	dagGraph, sortedSteps, err := r.getOrBuildDAG(jobFlow)
 	if err != nil {
 		r.MetricsRecorder.RecordReconciliationError("dag_cycle")
 		reconcileLogger.Error(err, "DAG cycle detected", reconcileFields...)
@@ -221,7 +232,8 @@ func (r *JobFlowReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	// P0.1: Refresh step statuses from Jobs for any step with JobRef (Running/Pending-with-JobRef)
-	if err := r.refreshStepStatuses(ctx, jobFlow); err != nil {
+	// Optimization: Parallelize Job lookups
+	if err := r.refreshStepStatusesParallel(ctx, jobFlow); err != nil {
 		if r.isRetryable(err) {
 			reconcileLogger.Debug("Retryable error refreshing step statuses, will retry", reconcileFields...)
 			return ctrl.Result{Requeue: true}, err
@@ -640,7 +652,8 @@ func (r *JobFlowReconciler) executeStep(ctx context.Context, jobFlow *v1alpha1.J
 
 	logger.Info("Created Job for step", baseFields...)
 	r.EventRecorder.Eventf(jobFlow, corev1.EventTypeNormal, "StepCreated", "Created Job for step %s", stepName)
-	return r.Status().Update(ctx, jobFlow)
+	// Optimization: Don't update status here - let main reconcile loop batch the update
+	return nil
 }
 
 // createJobForStep creates a Kubernetes Job for a step.
@@ -812,7 +825,8 @@ func (r *JobFlowReconciler) handleStepFailure(ctx context.Context, jobFlow *v1al
 		stepStatus.Message = err.Error()
 		logger.Warn("Step failed but continuing due to ContinueOnFailure", baseFields...)
 		r.EventRecorder.Eventf(jobFlow, corev1.EventTypeWarning, "StepFailed", "Step %s failed but continuing: %v", stepName, err)
-		return r.Status().Update(ctx, jobFlow)
+		// Optimization: Don't update status here - let main reconcile loop batch the update
+		return nil
 	}
 
 	// Mark flow as failed
@@ -824,7 +838,9 @@ func (r *JobFlowReconciler) handleStepFailure(ctx context.Context, jobFlow *v1al
 
 	logger.Error(fmt.Errorf("step failed"), "Step failed, marking JobFlow as failed")
 	r.EventRecorder.Eventf(jobFlow, corev1.EventTypeWarning, "StepFailed", "Step %s failed: %v", stepName, err)
-	return r.Status().Update(ctx, jobFlow)
+	// Optimization: Don't update status here - let main reconcile loop batch the update
+	// Note: This marks the flow as failed, but the main loop will update status at the end
+	return nil
 }
 
 // isRetryable checks if an error is retryable.
@@ -1162,7 +1178,8 @@ func (r *JobFlowReconciler) checkStepTimeouts(ctx context.Context, jobFlow *v1al
 				r.EventRecorder.Eventf(jobFlow, corev1.EventTypeWarning, "StepTimeout", "Step %s exceeded timeout, marking JobFlow as failed", stepStatus.Name)
 			}
 
-			return r.Status().Update(ctx, jobFlow)
+			// Optimization: Don't update status here - let main reconcile loop batch the update
+			// Note: This is safe because we're in the main reconcile loop, not an early return
 		}
 	}
 
@@ -1232,7 +1249,8 @@ func (r *JobFlowReconciler) handleStepRetry(ctx context.Context, jobFlow *v1alph
 	logger.Info("Retrying step", sdklog.Int("retry_count", int(stepStatus.RetryCount)))
 	r.EventRecorder.Eventf(jobFlow, corev1.EventTypeNormal, "StepRetry", "Retrying step %s (attempt %d)", stepName, stepStatus.RetryCount)
 
-	return r.Status().Update(ctx, jobFlow)
+	// Optimization: Don't update status here - let main reconcile loop batch the update
+	return nil
 }
 
 // calculateBackoff calculates the backoff duration based on the retry policy.
@@ -1554,4 +1572,120 @@ func (r *JobFlowReconciler) handleManualApprovalStep(ctx context.Context, jobFlo
 	}
 
 	return nil
+}
+
+// getOrBuildDAG returns cached DAG if spec hasn't changed, otherwise builds and caches it.
+func (r *JobFlowReconciler) getOrBuildDAG(jobFlow *v1alpha1.JobFlow) (*dag.Graph, []string, error) {
+	// Compute hash of steps spec
+	specHash := r.computeStepsHash(jobFlow.Spec.Steps)
+	cacheKey := fmt.Sprintf("%s/%s", jobFlow.Namespace, jobFlow.Name)
+
+	// Check cache (read lock)
+	r.dagMu.RLock()
+	if cached, exists := r.dagCache[cacheKey]; exists && cached.specHash == specHash {
+		dagGraph := cached.dagGraph
+		sortedSteps := cached.sortedSteps
+		r.dagMu.RUnlock()
+		return dagGraph, sortedSteps, nil
+	}
+	r.dagMu.RUnlock()
+
+	// Build DAG
+	dagGraph := dag.BuildDAG(jobFlow.Spec.Steps)
+	sortedSteps, err := dagGraph.TopologicalSort()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Cache result (write lock)
+	r.dagMu.Lock()
+	r.dagCache[cacheKey] = &cachedDAG{
+		specHash:    specHash,
+		dagGraph:    dagGraph,
+		sortedSteps: sortedSteps,
+	}
+	r.dagMu.Unlock()
+
+	return dagGraph, sortedSteps, nil
+}
+
+// computeStepsHash computes SHA256 hash of steps spec for caching.
+func (r *JobFlowReconciler) computeStepsHash(steps []v1alpha1.Step) string {
+	// Marshal steps to JSON for hashing
+	data, err := json.Marshal(steps)
+	if err != nil {
+		// Fallback: use empty hash if marshaling fails
+		return ""
+	}
+	hash := sha256.Sum256(data)
+	return hex.EncodeToString(hash[:])
+}
+
+// refreshStepStatusesParallel refreshes step statuses in parallel for better performance.
+func (r *JobFlowReconciler) refreshStepStatusesParallel(ctx context.Context, jobFlow *v1alpha1.JobFlow) error {
+	logger := sdklog.NewLogger("zen-flow-controller")
+
+	// Collect steps that need refreshing
+	type refreshTask struct {
+		index      int
+		stepStatus *v1alpha1.StepStatus
+	}
+	var tasks []refreshTask
+	for i := range jobFlow.Status.Steps {
+		stepStatus := &jobFlow.Status.Steps[i]
+		if stepStatus.JobRef != nil {
+			tasks = append(tasks, refreshTask{index: i, stepStatus: stepStatus})
+		}
+	}
+
+	if len(tasks) == 0 {
+		return nil
+	}
+
+	// Use wait group for parallel execution
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	var firstErr error
+
+	for _, task := range tasks {
+		wg.Add(1)
+		go func(t refreshTask) {
+			defer wg.Done()
+
+			// Get the Job to check its current status
+			job := &batchv1.Job{}
+			jobKey := types.NamespacedName{Namespace: jobFlow.Namespace, Name: t.stepStatus.JobRef.Name}
+			if err := r.Get(ctx, jobKey, job); err != nil {
+				mu.Lock()
+				defer mu.Unlock()
+				if k8serrors.IsNotFound(err) {
+					// Job was deleted, mark step as failed
+					logger.Warn("Job not found, marking step as failed", sdklog.String("step", t.stepStatus.Name), sdklog.String("job", t.stepStatus.JobRef.Name))
+					t.stepStatus.Phase = v1alpha1.StepPhaseFailed
+					now := metav1.Now()
+					t.stepStatus.CompletionTime = &now
+					// Record step duration if start time is available
+					if t.stepStatus.StartTime != nil {
+						duration := now.Sub(t.stepStatus.StartTime.Time).Seconds()
+						r.MetricsRecorder.RecordStepDuration(jobFlow.Name, t.stepStatus.Name, "failure", duration)
+					}
+					t.stepStatus.Message = fmt.Sprintf("Job %s not found", t.stepStatus.JobRef.Name)
+					return
+				}
+				// Store first error
+				if firstErr == nil {
+					firstErr = jferrors.WithStep(jferrors.WithJobFlow(jferrors.Wrapf(err, "job_get_failed", "failed to get Job %s", t.stepStatus.JobRef.Name), jobFlow.Namespace, jobFlow.Name), t.stepStatus.Name)
+				}
+				return
+			}
+
+			// Update step status based on job status (in memory only)
+			mu.Lock()
+			r.refreshStepStatusFromJob(jobFlow, t.stepStatus.Name, job)
+			mu.Unlock()
+		}(task)
+	}
+
+	wg.Wait()
+	return firstErr
 }
