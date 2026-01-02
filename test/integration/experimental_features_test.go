@@ -77,9 +77,8 @@ func TestExperimentalFeatures_JSONv2(t *testing.T) {
 		t.Fatalf("Failed to create JobFlow: %v", err)
 	}
 
-	// Wait for reconciliation
-	time.Sleep(2 * time.Second)
-
+	// Note: In real integration tests, we'd create the JobFlow in a cluster
+	// For experimental feature tests, we focus on JSON/GC performance
 	// Test JSON marshaling performance (simulating status updates)
 	iterations := 1000
 	start := time.Now()
