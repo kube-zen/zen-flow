@@ -2,6 +2,7 @@
 bin/
 zen-flow-controller
 validate-examples
+main
 *.exe
 *.exe~
 *.dll
