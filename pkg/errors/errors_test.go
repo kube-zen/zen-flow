@@ -29,19 +29,12 @@ func TestJobFlowError_Error(t *testing.T) {
 	}{
 		{
 			name: "error with message only",
-			err: &JobFlowError{
-				Type:    "test_error",
-				Message: "test message",
-			},
+			err:  New("test_error", "test message"),
 			wantErr: "test message",
 		},
 		{
 			name: "error with underlying error",
-			err: &JobFlowError{
-				Type:    "test_error",
-				Message: "test message",
-				Err:     errors.New("underlying error"),
-			},
+			err:  Wrap(errors.New("underlying error"), "test_error", "test message"),
 			wantErr: "test message: underlying error",
 		},
 	}
@@ -57,20 +50,13 @@ func TestJobFlowError_Error(t *testing.T) {
 
 func TestJobFlowError_Unwrap(t *testing.T) {
 	underlying := errors.New("underlying error")
-	err := &JobFlowError{
-		Type:    "test_error",
-		Message: "test message",
-		Err:     underlying,
-	}
+	err := Wrap(underlying, "test_error", "test message")
 
 	if unwrapped := err.Unwrap(); unwrapped != underlying {
 		t.Errorf("JobFlowError.Unwrap() = %v, want %v", unwrapped, underlying)
 	}
 
-	errNoWrap := &JobFlowError{
-		Type:    "test_error",
-		Message: "test message",
-	}
+	errNoWrap := New("test_error", "test message")
 	if unwrapped := errNoWrap.Unwrap(); unwrapped != nil {
 		t.Errorf("JobFlowError.Unwrap() = %v, want nil", unwrapped)
 	}
@@ -80,14 +66,14 @@ func TestWithJobFlow(t *testing.T) {
 	originalErr := errors.New("original error")
 	err := WithJobFlow(originalErr, "test-namespace", "test-name")
 
-	if err.JobFlowNamespace != "test-namespace" {
-		t.Errorf("JobFlowNamespace = %v, want test-namespace", err.JobFlowNamespace)
+	if err.GetContext("jobflow_namespace") != "test-namespace" {
+		t.Errorf("jobflow_namespace = %v, want test-namespace", err.GetContext("jobflow_namespace"))
 	}
-	if err.JobFlowName != "test-name" {
-		t.Errorf("JobFlowName = %v, want test-name", err.JobFlowName)
+	if err.GetContext("jobflow_name") != "test-name" {
+		t.Errorf("jobflow_name = %v, want test-name", err.GetContext("jobflow_name"))
 	}
-	if err.Err != originalErr {
-		t.Errorf("Err = %v, want %v", err.Err, originalErr)
+	if err.Unwrap() != originalErr {
+		t.Errorf("Unwrap() = %v, want %v", err.Unwrap(), originalErr)
 	}
 }
 
@@ -95,11 +81,11 @@ func TestWithStep(t *testing.T) {
 	originalErr := errors.New("original error")
 	err := WithStep(originalErr, "step1")
 
-	if err.StepName != "step1" {
-		t.Errorf("StepName = %v, want step1", err.StepName)
+	if err.GetContext("step_name") != "step1" {
+		t.Errorf("step_name = %v, want step1", err.GetContext("step_name"))
 	}
-	if err.Err != originalErr {
-		t.Errorf("Err = %v, want %v", err.Err, originalErr)
+	if err.Unwrap() != originalErr {
+		t.Errorf("Unwrap() = %v, want %v", err.Unwrap(), originalErr)
 	}
 }
 
@@ -107,14 +93,14 @@ func TestWithJob(t *testing.T) {
 	originalErr := errors.New("original error")
 	err := WithJob(originalErr, "test-namespace", "test-job")
 
-	if err.JobNamespace != "test-namespace" {
-		t.Errorf("JobNamespace = %v, want test-namespace", err.JobNamespace)
+	if err.GetContext("job_namespace") != "test-namespace" {
+		t.Errorf("job_namespace = %v, want test-namespace", err.GetContext("job_namespace"))
 	}
-	if err.JobName != "test-job" {
-		t.Errorf("JobName = %v, want test-job", err.JobName)
+	if err.GetContext("job_name") != "test-job" {
+		t.Errorf("job_name = %v, want test-job", err.GetContext("job_name"))
 	}
-	if err.Err != originalErr {
-		t.Errorf("Err = %v, want %v", err.Err, originalErr)
+	if err.Unwrap() != originalErr {
+		t.Errorf("Unwrap() = %v, want %v", err.Unwrap(), originalErr)
 	}
 }
 
@@ -127,8 +113,8 @@ func TestNew(t *testing.T) {
 	if err.Message != "test message" {
 		t.Errorf("Message = %v, want test message", err.Message)
 	}
-	if err.Err != nil {
-		t.Errorf("Err = %v, want nil", err.Err)
+	if err.Unwrap() != nil {
+		t.Errorf("Unwrap() = %v, want nil", err.Unwrap())
 	}
 }
 
@@ -142,8 +128,8 @@ func TestWrap(t *testing.T) {
 	if err.Message != "test message" {
 		t.Errorf("Message = %v, want test message", err.Message)
 	}
-	if err.Err != originalErr {
-		t.Errorf("Err = %v, want %v", err.Err, originalErr)
+	if err.Unwrap() != originalErr {
+		t.Errorf("Unwrap() = %v, want %v", err.Unwrap(), originalErr)
 	}
 }
 
@@ -157,8 +143,8 @@ func TestWrapf(t *testing.T) {
 	if err.Message != "test message" {
 		t.Errorf("Message = %v, want test message", err.Message)
 	}
-	if err.Err != originalErr {
-		t.Errorf("Err = %v, want %v", err.Err, originalErr)
+	if err.Unwrap() != originalErr {
+		t.Errorf("Unwrap() = %v, want %v", err.Unwrap(), originalErr)
 	}
 }
 
@@ -167,13 +153,13 @@ func TestWithJobFlow_PreservesExistingContext(t *testing.T) {
 	err1 := WithStep(originalErr, "step1")
 	err2 := WithJobFlow(err1, "test-namespace", "test-name")
 
-	if err2.StepName != "step1" {
-		t.Errorf("StepName should be preserved: got %v, want step1", err2.StepName)
+	if err2.GetContext("step_name") != "step1" {
+		t.Errorf("step_name should be preserved: got %v, want step1", err2.GetContext("step_name"))
 	}
-	if err2.JobFlowNamespace != "test-namespace" {
-		t.Errorf("JobFlowNamespace = %v, want test-namespace", err2.JobFlowNamespace)
+	if err2.GetContext("jobflow_namespace") != "test-namespace" {
+		t.Errorf("jobflow_namespace = %v, want test-namespace", err2.GetContext("jobflow_namespace"))
 	}
-	if err2.JobFlowName != "test-name" {
-		t.Errorf("JobFlowName = %v, want test-name", err2.JobFlowName)
+	if err2.GetContext("jobflow_name") != "test-name" {
+		t.Errorf("jobflow_name = %v, want test-name", err2.GetContext("jobflow_name"))
 	}
 }

@@ -4,7 +4,7 @@
 run:
   timeout: 5m
   tests: true
-  go: "1.24"
+  go: "1.25"
 
 linters:
   enable:
@@ -70,7 +70,7 @@ issues:
 
 output:
   formats:
-    - format: colored-line-number
+    colored-line-number: true
   print-issued-lines: true
   print-linter-name: true
 
