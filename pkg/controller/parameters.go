@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/PaesslerAG/jsonpath"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
@@ -32,8 +33,6 @@ import (
 
 // resolveParameter resolves a parameter value from various sources
 func (r *JobFlowReconciler) resolveParameter(ctx context.Context, jobFlow *v1alpha1.JobFlow, param *v1alpha1.ParameterInput) (string, error) {
-	logger := sdklog.NewLogger("zen-flow-controller")
-
 	// If value is directly provided, use it
 	if param.Value != "" {
 		return param.Value, nil
@@ -58,12 +57,11 @@ func (r *JobFlowReconciler) resolveParameter(ctx context.Context, jobFlow *v1alp
 
 	// Resolve from JSONPath (from previous step outputs)
 	if valueFrom.JSONPath != "" {
-		// TODO: Implement JSONPath extraction from step outputs
-		// For now, return placeholder
-		logger.Debug("JSONPath parameter resolution not yet fully implemented",
-			sdklog.String("parameter_name", param.Name),
-			sdklog.String("jsonpath", valueFrom.JSONPath))
-		return "", jferrors.New("jsonpath_not_implemented", "JSONPath parameter resolution not yet implemented")
+		// JSONPath should reference a previous step's output
+		// Format: "stepName:$.jsonpath" or just "$.jsonpath" (from current step)
+		// For now, assume it's from a previous step's job status
+		// TODO: Support explicit step name in JSONPath (e.g., "step1:$.status.succeeded")
+		return "", jferrors.New("jsonpath_step_not_specified", "JSONPath parameter requires step name - use extractParameterFromJobOutput instead")
 	}
 
 	return "", jferrors.New("parameter_source_invalid", fmt.Sprintf("parameter %s has invalid valueFrom configuration", param.Name))
@@ -142,15 +140,14 @@ func (r *JobFlowReconciler) extractParameterFromJobOutput(ctx context.Context, j
 		sdklog.String("step", stepName),
 		sdklog.String("jsonpath", jsonPath))
 
-	// Placeholder: convert job status to JSON and apply JSONPath
+	// Convert job status to JSON and apply JSONPath
 	jobJSON, err := json.Marshal(job.Status)
 	if err != nil {
 		return "", jferrors.Wrapf(err, "json_marshal_failed", "failed to marshal job status to JSON")
 	}
 
-	// Simple JSONPath implementation for common patterns
-	// Full implementation would use a JSONPath library like github.com/PaesslerAG/jsonpath
-	result, err := r.evaluateSimpleJSONPath(string(jobJSON), jsonPath)
+	// Use JSONPath library for full evaluation
+	result, err := r.evaluateJSONPath(string(jobJSON), jsonPath)
 	if err != nil {
 		return "", jferrors.Wrapf(err, "jsonpath_evaluation_failed", "failed to evaluate JSONPath %s", jsonPath)
 	}
@@ -158,27 +155,40 @@ func (r *JobFlowReconciler) extractParameterFromJobOutput(ctx context.Context, j
 	return result, nil
 }
 
-// evaluateSimpleJSONPath evaluates simple JSONPath expressions
-// This is a basic implementation - for full JSONPath support, use a library
-func (r *JobFlowReconciler) evaluateSimpleJSONPath(jsonData, jsonPath string) (string, error) {
+// evaluateJSONPath evaluates JSONPath expressions using github.com/PaesslerAG/jsonpath
+func (r *JobFlowReconciler) evaluateJSONPath(jsonData, jsonPathExpr string) (string, error) {
 	// Parse JSON
 	var data interface{}
 	if err := json.Unmarshal([]byte(jsonData), &data); err != nil {
 		return "", fmt.Errorf("failed to parse JSON: %w", err)
 	}
 
-	// Simple JSONPath implementation for common patterns
-	// Full implementation would use github.com/PaesslerAG/jsonpath or similar
-	// For now, support simple paths like "$.succeeded" or "$.status.succeeded"
-	if jsonPath == "$.succeeded" {
-		if m, ok := data.(map[string]interface{}); ok {
-			if succeeded, ok := m["succeeded"].(float64); ok {
-				return fmt.Sprintf("%.0f", succeeded), nil
-			}
-		}
+	// Evaluate JSONPath using Get function
+	result, err := jsonpath.Get(jsonPathExpr, data)
+	if err != nil {
+		return "", fmt.Errorf("failed to evaluate JSONPath %s: %w", jsonPathExpr, err)
 	}
 
-	// TODO: Implement full JSONPath evaluation using a library
-	return "", fmt.Errorf("JSONPath %s not yet fully supported - requires JSONPath library", jsonPath)
+	// Convert result to string
+	var resultStr string
+	switch v := result.(type) {
+	case string:
+		resultStr = v
+	case float64:
+		resultStr = fmt.Sprintf("%.0f", v)
+	case bool:
+		resultStr = fmt.Sprintf("%t", v)
+	case nil:
+		resultStr = ""
+	default:
+		// For complex types, marshal to JSON
+		jsonBytes, err := json.Marshal(v)
+		if err != nil {
+			return "", fmt.Errorf("failed to marshal JSONPath result: %w", err)
+		}
+		resultStr = string(jsonBytes)
+	}
+
+	return resultStr, nil
 }
 

@@ -260,7 +260,7 @@ func (r *JobFlowReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	// Create execution plan
 	executionPlan := r.createExecutionPlan(dagGraph, jobFlow, sortedSteps)
-	
+
 	// Record step execution queue depth
 	r.MetricsRecorder.RecordStepExecutionQueueDepth(jobFlow.Name, len(executionPlan.ReadySteps))
 
@@ -649,14 +649,16 @@ func (r *JobFlowReconciler) executeStep(ctx context.Context, jobFlow *v1alpha1.J
 		return r.handleManualApprovalStep(ctx, jobFlow, stepSpec, stepStatus)
 	}
 
-	// Handle step inputs before creating job
-	if err := r.handleStepInputs(ctx, jobFlow, stepSpec); err != nil {
+	// Handle step inputs before creating job (resolves parameters)
+	resolvedParams, err := r.handleStepInputs(ctx, jobFlow, stepSpec)
+	if err != nil {
 		logger.Warn("Failed to handle step inputs, continuing", baseFields...)
 		// Continue even if inputs fail (can be enhanced to fail fast)
+		resolvedParams = make(map[string]string)
 	}
 
-	// Create job for step
-	job, err := r.createJobForStep(ctx, jobFlow, stepSpec)
+	// Create job for step (with parameter substitution)
+	job, err := r.createJobForStep(ctx, jobFlow, stepSpec, resolvedParams)
 	if err != nil {
 		return jferrors.WithStep(jferrors.WithJobFlow(jferrors.Wrapf(err, "job_creation_failed", "failed to create Job for step"), jobFlow.Namespace, jobFlow.Name), stepName)
 	}
@@ -679,7 +681,7 @@ func (r *JobFlowReconciler) executeStep(ctx context.Context, jobFlow *v1alpha1.J
 }
 
 // createJobForStep creates a Kubernetes Job for a step.
-func (r *JobFlowReconciler) createJobForStep(ctx context.Context, jobFlow *v1alpha1.JobFlow, step *v1alpha1.Step) (*batchv1.Job, error) {
+func (r *JobFlowReconciler) createJobForStep(ctx context.Context, jobFlow *v1alpha1.JobFlow, step *v1alpha1.Step, resolvedParams map[string]string) (*batchv1.Job, error) {
 	logger := sdklog.NewLogger("zen-flow-controller")
 	baseFields := []sdklog.Field{
 		sdklog.String("namespace", jobFlow.Namespace),
@@ -696,6 +698,19 @@ func (r *JobFlowReconciler) createJobForStep(ctx context.Context, jobFlow *v1alp
 	job := jobTemplate.DeepCopy()
 	job.Name = fmt.Sprintf("%s-%s-%s", jobFlow.Name, step.Name, string(jobFlow.UID)[:8])
 	job.Namespace = jobFlow.Namespace
+
+	// Apply resolved parameters to job template
+	if len(resolvedParams) > 0 {
+		if err := r.applyParametersToJobTemplate(ctx, jobFlow, step, job, resolvedParams); err != nil {
+			logger.Warn("Failed to apply parameters to job template, continuing with original template", append(baseFields, sdklog.Error(err))...)
+			// Continue with original template if parameter application fails
+		} else {
+			// Also apply to container args/env for direct substitution
+			if job.Spec.Template.Spec.Containers != nil {
+				r.applyParametersToContainerArgs(job.Spec.Template.Spec.Containers, resolvedParams)
+			}
+		}
+	}
 
 	// Set owner reference
 	job.OwnerReferences = []metav1.OwnerReference{
@@ -1426,10 +1441,10 @@ func (r *JobFlowReconciler) applyPodFailureAction(action string) bool {
 // evaluateWhenCondition is now implemented in template.go with full template engine support
 
 // handleStepInputs processes step inputs (artifacts, parameters) before step execution.
-// Currently a placeholder - actual artifact/parameter handling can be enhanced.
-func (r *JobFlowReconciler) handleStepInputs(ctx context.Context, jobFlow *v1alpha1.JobFlow, step *v1alpha1.Step) error {
+// Returns resolved parameters for template application.
+func (r *JobFlowReconciler) handleStepInputs(ctx context.Context, jobFlow *v1alpha1.JobFlow, step *v1alpha1.Step) (map[string]string, error) {
 	if step.Inputs == nil {
-		return nil
+		return make(map[string]string), nil
 	}
 
 	logger := sdklog.NewLogger("zen-flow-controller")
@@ -1437,7 +1452,7 @@ func (r *JobFlowReconciler) handleStepInputs(ctx context.Context, jobFlow *v1alp
 	// Handle artifacts
 	for _, artifact := range step.Inputs.Artifacts {
 		logger.Debug("Processing artifact input", sdklog.String("artifact_name", artifact.Name))
-		
+
 		targetPath := artifact.Path
 		if targetPath == "" {
 			targetPath = fmt.Sprintf("/tmp/artifacts/%s", artifact.Name)
@@ -1466,10 +1481,11 @@ func (r *JobFlowReconciler) handleStepInputs(ctx context.Context, jobFlow *v1alp
 		}
 	}
 
-	// Handle parameters
+	// Handle parameters - resolve and store for template application
+	resolvedParams := make(map[string]string)
 	for _, param := range step.Inputs.Parameters {
 		logger.Debug("Processing parameter input", sdklog.String("parameter_name", param.Name))
-		
+
 		value, err := r.resolveParameter(ctx, jobFlow, &param)
 		if err != nil {
 			logger.Warn("Failed to resolve parameter", sdklog.String("parameter_name", param.Name), sdklog.Error(err))
@@ -1477,12 +1493,12 @@ func (r *JobFlowReconciler) handleStepInputs(ctx context.Context, jobFlow *v1alp
 			continue
 		}
 
-		// Store resolved parameter (would be used in job template substitution)
+		// Store resolved parameter for template application
+		resolvedParams[param.Name] = value
 		logger.Debug("Resolved parameter", sdklog.String("parameter_name", param.Name), sdklog.String("value", value))
-		// TODO: Apply parameter to job template using template engine
 	}
 
-	return nil
+	return resolvedParams, nil
 }
 
 // handleStepOutputs processes step outputs (artifacts, parameters) after step completion.
@@ -1497,13 +1513,23 @@ func (r *JobFlowReconciler) handleStepOutputs(ctx context.Context, jobFlow *v1al
 	// Handle artifacts
 	for _, artifact := range step.Outputs.Artifacts {
 		logger.Debug("Processing artifact output", sdklog.String("artifact_name", artifact.Name))
-		
+
 		// Archive artifact if configured
 		if artifact.Archive != nil {
-			// TODO: Implement artifact archiving
-			logger.Debug("Artifact archiving not yet fully implemented",
-				sdklog.String("artifact_name", artifact.Name),
-				sdklog.String("format", artifact.Archive.Format))
+			archivePath, err := r.archiveArtifact(artifact.Path, artifact.Archive)
+			if err != nil {
+				logger.Warn("Failed to archive artifact",
+					sdklog.String("artifact_name", artifact.Name),
+					sdklog.String("path", artifact.Path),
+					sdklog.Error(err))
+				// Continue with other artifacts
+			} else {
+				// Update artifact path to archived path
+				artifact.Path = archivePath
+				logger.Info("Artifact archived successfully",
+					sdklog.String("artifact_name", artifact.Name),
+					sdklog.String("archive_path", archivePath))
+			}
 		}
 
 		// Upload to S3 if configured
@@ -1529,7 +1555,7 @@ func (r *JobFlowReconciler) handleStepOutputs(ctx context.Context, jobFlow *v1al
 	// Handle parameters
 	for _, param := range step.Outputs.Parameters {
 		logger.Debug("Processing parameter output", sdklog.String("parameter_name", param.Name))
-		
+
 		// Extract parameter value using JSONPath
 		if param.ValueFrom.JSONPath != "" {
 			value, err := r.extractParameterFromJobOutput(ctx, jobFlow, step.Name, param.ValueFrom.JSONPath)
@@ -1671,7 +1697,7 @@ func (r *JobFlowReconciler) handleManualApprovalStep(ctx context.Context, jobFlo
 func (r *JobFlowReconciler) getOrBuildDAG(jobFlow *v1alpha1.JobFlow) (*dag.Graph, []string, error) {
 	// Ensure cache is initialized
 	r.init()
-	
+
 	// Compute hash of steps spec
 	specHash := r.computeStepsHash(jobFlow.Spec.Steps)
 	cacheKey := fmt.Sprintf("%s/%s", jobFlow.Namespace, jobFlow.Name)
