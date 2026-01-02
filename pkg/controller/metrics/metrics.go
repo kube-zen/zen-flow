@@ -147,6 +147,42 @@ var (
 		},
 		[]string{"flow", "step", "timeout_type"}, // timeout_type: step_timeout, jobflow_timeout
 	)
+
+	// DAGComputationDurationSeconds tracks DAG computation time
+	DAGComputationDurationSeconds = promauto.NewHistogram(
+		prometheus.HistogramOpts{
+			Name:    "zen_flow_dag_computation_duration_seconds",
+			Help:    "Time spent computing DAG and topological sort",
+			Buckets: []float64{.001, .005, .01, .025, .05, .1, .25, .5, 1}, // 1ms to 1s
+		},
+	)
+
+	// StatusUpdateDurationSeconds tracks status update latency
+	StatusUpdateDurationSeconds = promauto.NewHistogram(
+		prometheus.HistogramOpts{
+			Name:    "zen_flow_status_update_duration_seconds",
+			Help:    "Time spent updating JobFlow status",
+			Buckets: []float64{.001, .005, .01, .025, .05, .1, .25, .5, 1, 2.5}, // 1ms to 2.5s
+		},
+	)
+
+	// StepExecutionQueueDepth tracks the number of steps ready for execution
+	StepExecutionQueueDepth = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "zen_flow_step_execution_queue_depth",
+			Help: "Number of steps currently ready for execution",
+		},
+		[]string{"flow"},
+	)
+
+	// APIServerCallTotal counts API server calls by operation type
+	APIServerCallTotal = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "zen_flow_api_server_calls_total",
+			Help: "Total number of API server calls by operation type",
+		},
+		[]string{"operation", "resource"}, // operation: get, list, create, update, delete; resource: jobflow, job, pod
+	)
 )
 
 // Recorder records metrics for JobFlow operations.
@@ -300,4 +336,24 @@ func (r *Recorder) RecordTimeout(flow, step, timeoutType string) {
 // UpdateApprovalsPending updates the approvals pending gauge
 func (r *Recorder) UpdateApprovalsPending(flow string, count int) {
 	ApprovalsPending.WithLabelValues(flow).Set(float64(count))
+}
+
+// RecordDAGComputationDuration records the time spent computing DAG
+func (r *Recorder) RecordDAGComputationDuration(durationSeconds float64) {
+	DAGComputationDurationSeconds.Observe(durationSeconds)
+}
+
+// RecordStatusUpdateDuration records the time spent updating status
+func (r *Recorder) RecordStatusUpdateDuration(durationSeconds float64) {
+	StatusUpdateDurationSeconds.Observe(durationSeconds)
+}
+
+// RecordStepExecutionQueueDepth records the number of steps ready for execution
+func (r *Recorder) RecordStepExecutionQueueDepth(flow string, depth int) {
+	StepExecutionQueueDepth.WithLabelValues(flow).Set(float64(depth))
+}
+
+// RecordAPIServerCall records an API server call
+func (r *Recorder) RecordAPIServerCall(operation, resource string) {
+	APIServerCallTotal.WithLabelValues(operation, resource).Inc()
 }

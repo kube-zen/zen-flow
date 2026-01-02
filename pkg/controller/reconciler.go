@@ -123,15 +123,19 @@ func (r *JobFlowReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	// Fetch the JobFlow instance
 	jobFlow := &v1alpha1.JobFlow{}
 	if err := r.Get(ctx, req.NamespacedName, jobFlow); err != nil {
+		r.MetricsRecorder.RecordAPIServerCall("get", "jobflow")
 		if k8serrors.IsNotFound(err) {
 			// JobFlow was deleted, nothing to do
 			reconcileLogger.Debug("JobFlow was deleted, skipping reconciliation", reconcileFields...)
+			r.MetricsRecorder.RecordAPIServerCall("get", "jobflow")
 			return ctrl.Result{}, nil
 		}
 		// Error reading the object - requeue the request
 		reconcileLogger.Error(err, "Failed to get JobFlow", reconcileFields...)
+		r.MetricsRecorder.RecordAPIServerCall("get", "jobflow")
 		return ctrl.Result{}, err
 	}
+	r.MetricsRecorder.RecordAPIServerCall("get", "jobflow")
 
 	// Validate JobFlow
 	if err := r.validateJobFlow(jobFlow); err != nil {
@@ -214,7 +218,10 @@ func (r *JobFlowReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	// Build DAG (with caching optimization)
+	dagStart := time.Now()
 	dagGraph, sortedSteps, err := r.getOrBuildDAG(jobFlow)
+	dagDuration := time.Since(dagStart)
+	r.MetricsRecorder.RecordDAGComputationDuration(dagDuration.Seconds())
 	if err != nil {
 		r.MetricsRecorder.RecordReconciliationError("dag_cycle")
 		reconcileLogger.Error(err, "DAG cycle detected", reconcileFields...)
@@ -252,6 +259,9 @@ func (r *JobFlowReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	// Create execution plan
 	executionPlan := r.createExecutionPlan(dagGraph, jobFlow, sortedSteps)
+	
+	// Record step execution queue depth
+	r.MetricsRecorder.RecordStepExecutionQueueDepth(jobFlow.Name, len(executionPlan.ReadySteps))
 
 	// Check step timeouts for running steps
 	if err := r.checkStepTimeouts(ctx, jobFlow); err != nil {
@@ -448,6 +458,7 @@ func (r *JobFlowReconciler) refreshStepStatuses(ctx context.Context, jobFlow *v1
 		job := &batchv1.Job{}
 		jobKey := types.NamespacedName{Namespace: jobFlow.Namespace, Name: stepStatus.JobRef.Name}
 		if err := r.Get(ctx, jobKey, job); err != nil {
+			r.MetricsRecorder.RecordAPIServerCall("get", "job")
 			if k8serrors.IsNotFound(err) {
 				// Job was deleted, mark step as failed
 				logger.Warn("Job not found, marking step as failed")
@@ -460,10 +471,13 @@ func (r *JobFlowReconciler) refreshStepStatuses(ctx context.Context, jobFlow *v1
 					r.MetricsRecorder.RecordStepDuration(jobFlow.Name, stepStatus.Name, "failure", duration)
 				}
 				stepStatus.Message = fmt.Sprintf("Job %s not found", stepStatus.JobRef.Name)
+				r.MetricsRecorder.RecordAPIServerCall("get", "job")
 				continue
 			}
+			r.MetricsRecorder.RecordAPIServerCall("get", "job")
 			return jferrors.WithStep(jferrors.WithJobFlow(jferrors.Wrapf(err, "job_get_failed", "failed to get Job %s", stepStatus.JobRef.Name), jobFlow.Namespace, jobFlow.Name), stepStatus.Name)
 		}
+		r.MetricsRecorder.RecordAPIServerCall("get", "job")
 
 		// Update step status based on job status (in memory only, don't write to API yet)
 		r.refreshStepStatusFromJob(jobFlow, stepStatus.Name, job)
@@ -711,8 +725,10 @@ func (r *JobFlowReconciler) createJobForStep(ctx context.Context, jobFlow *v1alp
 	}
 
 	if err := r.Create(ctx, job); err != nil {
+		r.MetricsRecorder.RecordAPIServerCall("create", "job")
 		return nil, jferrors.WithStep(jferrors.WithJobFlow(jferrors.Wrapf(err, "job_create_failed", "failed to create Job"), jobFlow.Namespace, jobFlow.Name), step.Name)
 	}
+	r.MetricsRecorder.RecordAPIServerCall("create", "job")
 
 	logger.Debug("Job created successfully", baseFields...)
 	return job, nil
@@ -972,7 +988,12 @@ func (r *JobFlowReconciler) updateJobFlowStatus(ctx context.Context, jobFlow *v1
 	r.updateConditions(jobFlow)
 
 	// Update status via controller-runtime StatusWriter
-	return r.Status().Update(ctx, jobFlow)
+	statusStart := time.Now()
+	err := r.Status().Update(ctx, jobFlow)
+	statusDuration := time.Since(statusStart)
+	r.MetricsRecorder.RecordStatusUpdateDuration(statusDuration.Seconds())
+	r.MetricsRecorder.RecordAPIServerCall("update", "jobflow")
+	return err
 }
 
 // updateConditions updates JobFlow conditions.
@@ -1057,8 +1078,10 @@ func (r *JobFlowReconciler) checkConcurrencyPolicy(ctx context.Context, jobFlow 
 	// For "Forbid" or "Replace", check for other running JobFlows with the same name
 	jobFlowList := &v1alpha1.JobFlowList{}
 	if err := r.List(ctx, jobFlowList, client.InNamespace(jobFlow.Namespace)); err != nil {
+		r.MetricsRecorder.RecordAPIServerCall("list", "jobflow")
 		return jferrors.WithJobFlow(jferrors.Wrapf(err, "list_failed", "failed to list JobFlows"), jobFlow.Namespace, jobFlow.Name)
 	}
+	r.MetricsRecorder.RecordAPIServerCall("list", "jobflow")
 
 	for _, existing := range jobFlowList.Items {
 		// Skip self
@@ -1601,11 +1624,15 @@ func (r *JobFlowReconciler) getOrBuildDAG(jobFlow *v1alpha1.JobFlow) (*dag.Graph
 	r.dagMu.RUnlock()
 
 	// Build DAG
+	dagStart := time.Now()
 	dagGraph := dag.BuildDAG(jobFlow.Spec.Steps)
 	sortedSteps, err := dagGraph.TopologicalSort()
+	dagDuration := time.Since(dagStart)
 	if err != nil {
 		return nil, nil, err
 	}
+	// Record DAG computation time (only when actually building, not from cache)
+	r.MetricsRecorder.RecordDAGComputationDuration(dagDuration.Seconds())
 
 	// Cache result (write lock)
 	r.dagMu.Lock()

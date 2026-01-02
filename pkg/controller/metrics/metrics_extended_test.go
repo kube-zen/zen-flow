@@ -139,3 +139,38 @@ func TestRecorder_UpdateApprovalsPending(t *testing.T) {
 	recorder.UpdateApprovalsPending("flow1", 2)
 	recorder.UpdateApprovalsPending("flow2", 1)
 }
+
+func TestRecorder_RecordDAGComputationDuration(t *testing.T) {
+	recorder := NewRecorder()
+
+	recorder.RecordDAGComputationDuration(0.001)  // 1ms
+	recorder.RecordDAGComputationDuration(0.01)   // 10ms
+	recorder.RecordDAGComputationDuration(0.1)    // 100ms
+}
+
+func TestRecorder_RecordStatusUpdateDuration(t *testing.T) {
+	recorder := NewRecorder()
+
+	recorder.RecordStatusUpdateDuration(0.001)  // 1ms
+	recorder.RecordStatusUpdateDuration(0.01)   // 10ms
+	recorder.RecordStatusUpdateDuration(0.1)    // 100ms
+}
+
+func TestRecorder_RecordStepExecutionQueueDepth(t *testing.T) {
+	recorder := NewRecorder()
+
+	recorder.RecordStepExecutionQueueDepth("flow1", 0)
+	recorder.RecordStepExecutionQueueDepth("flow1", 5)
+	recorder.RecordStepExecutionQueueDepth("flow2", 10)
+}
+
+func TestRecorder_RecordAPIServerCall(t *testing.T) {
+	recorder := NewRecorder()
+
+	recorder.RecordAPIServerCall("get", "jobflow")
+	recorder.RecordAPIServerCall("get", "job")
+	recorder.RecordAPIServerCall("list", "jobflow")
+	recorder.RecordAPIServerCall("create", "job")
+	recorder.RecordAPIServerCall("update", "jobflow")
+	recorder.RecordAPIServerCall("delete", "job")
+}
