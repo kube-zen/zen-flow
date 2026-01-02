@@ -151,7 +151,7 @@ func (r *JobFlowReconciler) fetchArtifactFromHTTP(ctx context.Context, httpArtif
 	}
 
 	// Create target directory if needed
-	if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(targetPath), DefaultDirPerm); err != nil {
 		return jferrors.Wrapf(err, "mkdir_failed", "failed to create directory for %s", targetPath)
 	}
 
@@ -231,7 +231,7 @@ func (r *JobFlowReconciler) uploadArtifactToS3(ctx context.Context, jobFlow *v1a
 
 	// Upload file to S3
 	uploadInfo, err := minioClient.PutObject(ctx, s3Config.Bucket, s3Config.Key, file, fileInfo.Size(), minio.PutObjectOptions{
-		ContentType: "application/octet-stream",
+		ContentType: DefaultContentType,
 	})
 	if err != nil {
 		return jferrors.Wrapf(err, "s3_upload_failed", "failed to upload artifact to S3")
@@ -263,7 +263,7 @@ func (r *JobFlowReconciler) getSecretValue(ctx context.Context, namespace string
 
 	key := secretRef.Key
 	if key == "" {
-		key = "value" // Default key name
+		key = DefaultConfigMapKey
 	}
 
 	value, exists := secret.Data[key]

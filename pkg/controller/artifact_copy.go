@@ -24,6 +24,7 @@ import (
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -56,7 +57,7 @@ func (r *JobFlowReconciler) copyArtifactFromConfigMap(ctx context.Context, confi
 	}
 
 	// Write artifact data to target path
-	if err := os.WriteFile(targetPath, []byte(artifactData), 0644); err != nil {
+	if err := os.WriteFile(targetPath, []byte(artifactData), DefaultFilePerm); err != nil {
 		return jferrors.Wrapf(err, "file_write_failed", "failed to write artifact to %s", targetPath)
 	}
 
@@ -76,7 +77,7 @@ func (r *JobFlowReconciler) writeBinaryArtifact(data []byte, targetPath string) 
 	}
 
 	// Write binary data to target path
-	if err := os.WriteFile(targetPath, data, 0644); err != nil {
+	if err := os.WriteFile(targetPath, data, DefaultFilePerm); err != nil {
 		return jferrors.Wrapf(err, "file_write_failed", "failed to write binary artifact to %s", targetPath)
 	}
 
@@ -94,7 +95,7 @@ func (r *JobFlowReconciler) storeArtifactInConfigMap(ctx context.Context, jobFlo
 	}
 
 	// Check file size - ConfigMaps have a 1MB limit
-	if len(artifactData) > 1024*1024 {
+	if len(artifactData) > ConfigMapSizeLimit {
 		logger.Warn("Artifact too large for ConfigMap, skipping ConfigMap storage",
 			sdklog.String("artifact_name", artifactName),
 			sdklog.String("size", fmt.Sprintf("%d bytes", len(artifactData))),
@@ -109,6 +110,10 @@ func (r *JobFlowReconciler) storeArtifactInConfigMap(ctx context.Context, jobFlo
 	configMap := &corev1.ConfigMap{}
 	err = r.Get(ctx, configMapKey, configMap)
 	if err != nil {
+		if !k8serrors.IsNotFound(err) {
+			// Error other than not found
+			return jferrors.Wrapf(err, "configmap_get_failed", "failed to get ConfigMap %s", configMapName)
+		}
 		// ConfigMap doesn't exist, create it
 		configMap = &corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{

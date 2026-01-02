@@ -128,12 +128,10 @@ func (r *JobFlowReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		if k8serrors.IsNotFound(err) {
 			// JobFlow was deleted, nothing to do
 			reconcileLogger.Debug("JobFlow was deleted, skipping reconciliation", reconcileFields...)
-			r.MetricsRecorder.RecordAPIServerCall("get", "jobflow")
 			return ctrl.Result{}, nil
 		}
 		// Error reading the object - requeue the request
 		reconcileLogger.Error(err, "Failed to get JobFlow", reconcileFields...)
-		r.MetricsRecorder.RecordAPIServerCall("get", "jobflow")
 		return ctrl.Result{}, err
 	}
 	r.MetricsRecorder.RecordAPIServerCall("get", "jobflow")
@@ -696,7 +694,12 @@ func (r *JobFlowReconciler) createJobForStep(ctx context.Context, jobFlow *v1alp
 
 	// Create job
 	job := jobTemplate.DeepCopy()
-	job.Name = fmt.Sprintf("%s-%s-%s", jobFlow.Name, step.Name, string(jobFlow.UID)[:8])
+	// Safely truncate UID for job name (Kubernetes resource names have length limits)
+	uidStr := string(jobFlow.UID)
+	if len(uidStr) > UIDTruncateLength {
+		uidStr = uidStr[:UIDTruncateLength]
+	}
+	job.Name = fmt.Sprintf("%s-%s-%s", jobFlow.Name, step.Name, uidStr)
 	job.Namespace = jobFlow.Namespace
 
 	// Apply resolved parameters to job template
@@ -1062,7 +1065,7 @@ func (r *JobFlowReconciler) shouldDeleteJobFlow(jobFlow *v1alpha1.JobFlow) (bool
 	}
 
 	// Get TTL from execution policy
-	var ttlSeconds int32 = 86400 // Default 24 hours
+	var ttlSeconds int32 = DefaultTTLSeconds
 	if jobFlow.Spec.ExecutionPolicy != nil && jobFlow.Spec.ExecutionPolicy.TTLSecondsAfterFinished != nil {
 		ttlSeconds = *jobFlow.Spec.ExecutionPolicy.TTLSecondsAfterFinished
 	}
@@ -1082,7 +1085,7 @@ func (r *JobFlowReconciler) shouldDeleteJobFlow(jobFlow *v1alpha1.JobFlow) (bool
 
 // checkConcurrencyPolicy checks if concurrent executions are allowed.
 func (r *JobFlowReconciler) checkConcurrencyPolicy(ctx context.Context, jobFlow *v1alpha1.JobFlow) error {
-	policy := "Forbid" // Default
+	policy := DefaultConcurrencyPolicy
 	if jobFlow.Spec.ExecutionPolicy != nil && jobFlow.Spec.ExecutionPolicy.ConcurrencyPolicy != "" {
 		policy = jobFlow.Spec.ExecutionPolicy.ConcurrencyPolicy
 	}
@@ -1141,7 +1144,7 @@ func (r *JobFlowReconciler) checkActiveDeadline(jobFlow *v1alpha1.JobFlow) (bool
 
 // checkBackoffLimit checks if the JobFlow has exceeded its backoff limit.
 func (r *JobFlowReconciler) checkBackoffLimit(jobFlow *v1alpha1.JobFlow) (bool, error) {
-	limit := int32(6) // Default
+	limit := int32(DefaultBackoffLimit)
 	if jobFlow.Spec.ExecutionPolicy != nil && jobFlow.Spec.ExecutionPolicy.BackoffLimit != nil {
 		limit = *jobFlow.Spec.ExecutionPolicy.BackoffLimit
 	}
@@ -1259,7 +1262,7 @@ func (r *JobFlowReconciler) handleStepRetry(ctx context.Context, jobFlow *v1alph
 	}
 
 	// Check retry limit
-	limit := int32(3) // Default
+	limit := int32(DefaultRetryLimit)
 	if stepSpec.RetryPolicy.Limit > 0 {
 		limit = stepSpec.RetryPolicy.Limit
 	}
@@ -1303,7 +1306,7 @@ func (r *JobFlowReconciler) handleStepRetry(ctx context.Context, jobFlow *v1alph
 func (r *JobFlowReconciler) calculateBackoff(retryPolicy *v1alpha1.RetryPolicy, retryCount int32) time.Duration {
 	if retryPolicy.Backoff == nil {
 		// Default exponential backoff: 1s, 2s, 4s, 8s...
-		return time.Duration(1<<retryCount) * time.Second
+		return time.Duration(1<<retryCount) * DefaultBackoffBase
 	}
 
 	backoff := retryPolicy.Backoff
@@ -1319,7 +1322,7 @@ func (r *JobFlowReconciler) calculateBackoff(retryPolicy *v1alpha1.RetryPolicy, 
 	case "Linear":
 		return baseDuration * time.Duration(retryCount+1)
 	case "Exponential":
-		factor := 2.0 // Default factor
+		factor := DefaultBackoffFactor
 		if backoff.Factor != nil {
 			factor = *backoff.Factor
 		}
@@ -1378,7 +1381,7 @@ func (r *JobFlowReconciler) checkPodFailurePolicy(ctx context.Context, jobFlow *
 // getContainerExitCodes extracts exit codes from pod container statuses.
 func (r *JobFlowReconciler) getContainerExitCodes(pod *corev1.Pod) map[string]int32 {
 	exitCodes := make(map[string]int32)
-	containerName := "main" // Default container name
+	containerName := DefaultContainerName
 
 	for _, status := range pod.Status.ContainerStatuses {
 		if status.State.Terminated != nil {

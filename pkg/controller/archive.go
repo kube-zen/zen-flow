@@ -37,12 +37,12 @@ func (r *JobFlowReconciler) archiveArtifact(artifactPath string, archiveConfig *
 
 	format := archiveConfig.Format
 	if format == "" {
-		format = "tar" // Default to tar
+		format = DefaultArchiveFormat
 	}
 
 	compression := archiveConfig.Compression
 	if compression == "" {
-		compression = "none" // Default to no compression
+		compression = DefaultCompression
 	}
 
 	// Determine archive file extension

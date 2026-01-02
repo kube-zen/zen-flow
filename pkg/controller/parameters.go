@@ -80,7 +80,7 @@ func (r *JobFlowReconciler) resolveParameterFromConfigMap(ctx context.Context, n
 
 	key := configMapRef.Key
 	if key == "" {
-		key = "value" // Default key name
+		key = DefaultConfigMapKey
 	}
 
 	value, exists := configMap.Data[key]
