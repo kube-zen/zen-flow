@@ -17,62 +17,122 @@ limitations under the License.
 package controller
 
 import (
-	"context"
-
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/kubernetes/scheme"
-	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
-	"k8s.io/client-go/tools/record"
+
+	"github.com/kube-zen/zen-flow/pkg/api/v1alpha1"
+	sdkevents "github.com/kube-zen/zen-sdk/pkg/events"
 )
 
-// eventSinkWrapper wraps EventInterface to implement record.EventSink.
-type eventSinkWrapper struct {
-	events v1.EventInterface
-}
-
-func (e *eventSinkWrapper) Create(event *corev1.Event) (*corev1.Event, error) {
-	return e.events.Create(context.TODO(), event, metav1.CreateOptions{})
-}
-
-func (e *eventSinkWrapper) Update(event *corev1.Event) (*corev1.Event, error) {
-	return e.events.Update(context.TODO(), event, metav1.UpdateOptions{})
-}
-
-func (e *eventSinkWrapper) Patch(oldEvent *corev1.Event, data []byte) (*corev1.Event, error) {
-	return e.events.Patch(context.TODO(), oldEvent.Name, types.MergePatchType, data, metav1.PatchOptions{})
-}
-
-// EventRecorder records events for JobFlow resources.
+// EventRecorder wraps Kubernetes event recorder for JobFlow controller.
+// This now uses zen-sdk/pkg/events as the base implementation.
 type EventRecorder struct {
-	recorder record.EventRecorder
+	*sdkevents.Recorder
 }
 
 // NewEventRecorder creates a new event recorder.
 func NewEventRecorder(kubeClient kubernetes.Interface) *EventRecorder {
-	eventBroadcaster := record.NewBroadcaster()
-	eventBroadcaster.StartStructuredLogging(0)
-	if kubeClient != nil {
-		eventBroadcaster.StartRecordingToSink(&eventSinkWrapper{
-			events: kubeClient.CoreV1().Events(""),
-		})
-	}
-	recorder := eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: "zen-flow-controller"})
-
 	return &EventRecorder{
-		recorder: recorder,
+		Recorder: sdkevents.NewRecorder(kubeClient, "zen-flow-controller"),
 	}
 }
 
-// Eventf records an event with formatting.
-func (r *EventRecorder) Eventf(object runtime.Object, eventType, reason, messageFmt string, args ...interface{}) {
-	r.recorder.Eventf(object, eventType, reason, messageFmt, args...)
+// RecordJobFlowCreated records that a JobFlow was created.
+// Events for CRDs may not be supported by all Kubernetes clusters.
+// This function logs errors but does not fail if event recording fails.
+func (er *EventRecorder) RecordJobFlowCreated(jobFlow *v1alpha1.JobFlow) {
+	if er == nil || er.Recorder == nil {
+		return
+	}
+	er.Eventf(
+		jobFlow,
+		corev1.EventTypeNormal,
+		"JobFlowCreated",
+		"JobFlow created",
+	)
 }
 
-// Event records an event.
-func (r *EventRecorder) Event(object runtime.Object, eventType, reason, message string) {
-	r.recorder.Event(object, eventType, reason, message)
+// RecordJobFlowStarted records that a JobFlow started execution.
+func (er *EventRecorder) RecordJobFlowStarted(jobFlow *v1alpha1.JobFlow) {
+	if er == nil || er.Recorder == nil {
+		return
+	}
+	er.Eventf(
+		jobFlow,
+		corev1.EventTypeNormal,
+		"JobFlowStarted",
+		"JobFlow execution started",
+	)
+}
+
+// RecordJobFlowCompleted records that a JobFlow completed successfully.
+func (er *EventRecorder) RecordJobFlowCompleted(jobFlow *v1alpha1.JobFlow) {
+	if er == nil || er.Recorder == nil {
+		return
+	}
+	er.Eventf(
+		jobFlow,
+		corev1.EventTypeNormal,
+		"JobFlowCompleted",
+		"JobFlow completed successfully",
+	)
+}
+
+// RecordJobFlowFailed records that a JobFlow failed.
+func (er *EventRecorder) RecordJobFlowFailed(jobFlow *v1alpha1.JobFlow, reason string) {
+	if er == nil || er.Recorder == nil {
+		return
+	}
+	er.Eventf(
+		jobFlow,
+		corev1.EventTypeWarning,
+		"JobFlowFailed",
+		"JobFlow failed: %s",
+		reason,
+	)
+}
+
+// RecordStepCreated records that a step's Job was created.
+func (er *EventRecorder) RecordStepCreated(jobFlow *v1alpha1.JobFlow, stepName string, job runtime.Object) {
+	if er == nil || er.Recorder == nil {
+		return
+	}
+	er.Eventf(
+		jobFlow,
+		corev1.EventTypeNormal,
+		"StepCreated",
+		"Created Job for step %s: %s",
+		stepName,
+		sdkevents.GetResourceName(job),
+	)
+}
+
+// RecordStepSucceeded records that a step succeeded.
+func (er *EventRecorder) RecordStepSucceeded(jobFlow *v1alpha1.JobFlow, stepName string) {
+	if er == nil || er.Recorder == nil {
+		return
+	}
+	er.Eventf(
+		jobFlow,
+		corev1.EventTypeNormal,
+		"StepSucceeded",
+		"Step %s completed successfully",
+		stepName,
+	)
+}
+
+// RecordStepFailed records that a step failed.
+func (er *EventRecorder) RecordStepFailed(jobFlow *v1alpha1.JobFlow, stepName string, err error) {
+	if er == nil || er.Recorder == nil {
+		return
+	}
+	er.Eventf(
+		jobFlow,
+		corev1.EventTypeWarning,
+		"StepFailed",
+		"Step %s failed: %v",
+		stepName,
+		err,
+	)
 }

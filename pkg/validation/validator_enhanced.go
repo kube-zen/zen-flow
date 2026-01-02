@@ -22,7 +22,6 @@ import (
 	"strings"
 	"time"
 
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/kube-zen/zen-flow/pkg/api/v1alpha1"
@@ -90,8 +89,8 @@ func validateStepEnhanced(step *v1alpha1.Step, index int) error {
 	}
 
 	// Validate when condition if specified
-	if step.When != nil && *step.When != "" {
-		if err := validateWhenCondition(*step.When); err != nil {
+	if step.When != "" {
+		if err := validateWhenCondition(step.When); err != nil {
 			return fmt.Errorf("step %q: %w", step.Name, err)
 		}
 	}
@@ -556,8 +555,8 @@ func validatePodFailurePolicy(policy *v1alpha1.PodFailurePolicy) error {
 		}
 
 		// At least one condition must be specified
-		if rule.OnExitCodes == nil && rule.OnPodConditions == nil {
-			return fmt.Errorf("rule at index %d: at least one of onExitCodes or onPodConditions must be specified", i)
+		if rule.OnExitCodes == nil {
+			return fmt.Errorf("rule at index %d: onExitCodes must be specified", i)
 		}
 
 		// Validate OnExitCodes if specified
