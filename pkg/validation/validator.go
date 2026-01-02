@@ -68,6 +68,7 @@ var (
 )
 
 // ValidateJobFlow validates a JobFlow resource.
+// For enhanced validation with additional edge cases, use ValidateJobFlowEnhanced.
 func ValidateJobFlow(jobFlow *v1alpha1.JobFlow) error {
 	// Validate steps
 	if err := validateSteps(jobFlow.Spec.Steps); err != nil {

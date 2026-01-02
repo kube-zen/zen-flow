@@ -221,8 +221,8 @@ func (ws *WebhookServer) validateJobFlow(req *admissionv1.AdmissionRequest) erro
 		return fmt.Errorf("%w, got %T", ErrUnexpectedObjectType, obj)
 	}
 
-	// Use comprehensive validation package
-	if err := validation.ValidateJobFlow(jobFlowObj); err != nil {
+	// Use enhanced validation package for comprehensive validation
+	if err := validation.ValidateJobFlowEnhanced(jobFlowObj); err != nil {
 		return err
 	}
 
