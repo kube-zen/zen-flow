@@ -1542,6 +1542,15 @@ func (r *JobFlowReconciler) handleStepOutputs(ctx context.Context, jobFlow *v1al
 			}
 		}
 
+		// Store artifact in ConfigMap for sharing (if small enough)
+		// Large artifacts should use PVC or S3
+		if err := r.storeArtifactInConfigMap(ctx, jobFlow, step.Name, artifact.Name, artifact.Path); err != nil {
+			logger.Warn("Failed to store artifact in ConfigMap, continuing",
+				sdklog.String("artifact_name", artifact.Name),
+				sdklog.Error(err))
+			// Continue - artifact might be too large or in PVC
+		}
+
 		// Store artifact in step status
 		if stepStatus.Outputs == nil {
 			stepStatus.Outputs = &v1alpha1.StepOutputs{}

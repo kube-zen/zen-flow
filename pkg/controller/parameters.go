@@ -191,4 +191,3 @@ func (r *JobFlowReconciler) evaluateJSONPath(jsonData, jsonPathExpr string) (str
 
 	return resultStr, nil
 }
-
