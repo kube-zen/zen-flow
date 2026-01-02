@@ -1,8 +1,10 @@
-# VPA (Vertical Pod Autoscaler) Usage Guide
+# VPA (Vertical Pod Autoscaler) Configuration and Usage Guide
 
 ## Overview
 
 The Vertical Pod Autoscaler (VPA) automatically adjusts CPU and memory resource requests and limits for the `zen-flow` controller based on actual usage patterns. This helps optimize resource utilization and prevent OOM (Out of Memory) kills.
+
+zen-flow supports Vertical Pod Autoscaler (VPA) for automatic resource recommendation and adjustment.
 
 ## Prerequisites
 
@@ -20,10 +22,26 @@ The Vertical Pod Autoscaler (VPA) automatically adjusts CPU and memory resource 
 
 ## Installation
 
-Apply the VPA configuration:
+### Using Manifests
 
 ```bash
 kubectl apply -f deploy/manifests/vpa.yaml
+```
+
+### Using Helm
+
+The VPA configuration can be included in your Helm values:
+
+```yaml
+vpa:
+  enabled: true
+  updateMode: Auto
+  minAllowed:
+    cpu: 50m
+    memory: 32Mi
+  maxAllowed:
+    cpu: 2000m
+    memory: 2Gi
 ```
 
 ## Configuration
