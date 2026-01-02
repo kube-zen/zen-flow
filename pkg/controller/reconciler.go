@@ -1422,30 +1422,7 @@ func (r *JobFlowReconciler) applyPodFailureAction(action string) bool {
 	}
 }
 
-// evaluateWhenCondition evaluates a "When" condition string.
-// Currently supports simple boolean expressions and step status checks.
-// TODO: Enhance with full template engine support.
-func (r *JobFlowReconciler) evaluateWhenCondition(jobFlow *v1alpha1.JobFlow, condition string) (bool, error) {
-	// Simple implementation: check if condition references step status
-	// Examples: "steps.step1.phase == 'Succeeded'", "steps.step1.phase != 'Failed'"
-	// For now, return true if condition is not empty (can be enhanced with proper parser)
-	if condition == "" {
-		return true, nil
-	}
-
-	// Basic keyword-based evaluation
-	// Check for common patterns like "always", "never", step references
-	if condition == "always" || condition == "true" {
-		return true, nil
-	}
-	if condition == "never" || condition == "false" {
-		return false, nil
-	}
-
-	// TODO: Implement proper template evaluation with step status access
-	// For now, default to true if condition exists
-	return true, nil
-}
+// evaluateWhenCondition is now implemented in template.go with full template engine support
 
 // handleStepInputs processes step inputs (artifacts, parameters) before step execution.
 // Currently a placeholder - actual artifact/parameter handling can be enhanced.
@@ -1459,15 +1436,49 @@ func (r *JobFlowReconciler) handleStepInputs(ctx context.Context, jobFlow *v1alp
 	// Handle artifacts
 	for _, artifact := range step.Inputs.Artifacts {
 		logger.Debug("Processing artifact input", sdklog.String("artifact_name", artifact.Name))
-		// TODO: Implement artifact fetching from previous steps or HTTP sources
-		// For now, just log
+		
+		targetPath := artifact.Path
+		if targetPath == "" {
+			targetPath = fmt.Sprintf("/tmp/artifacts/%s", artifact.Name)
+		}
+
+		var err error
+		if artifact.From != "" {
+			// Fetch from previous step
+			// Parse "stepName/artifactName" format
+			parts := strings.Split(artifact.From, "/")
+			if len(parts) == 2 {
+				err = r.fetchArtifactFromStep(ctx, jobFlow, parts[0], parts[1], targetPath)
+			} else {
+				err = jferrors.New("invalid_artifact_from", fmt.Sprintf("invalid artifact from format: %s (expected 'stepName/artifactName')", artifact.From))
+			}
+		} else if artifact.HTTP != nil {
+			// Fetch from HTTP source
+			err = r.fetchArtifactFromHTTP(ctx, artifact.HTTP, targetPath)
+		} else {
+			err = jferrors.New("artifact_source_missing", fmt.Sprintf("artifact %s has no source (from or http)", artifact.Name))
+		}
+
+		if err != nil {
+			logger.Warn("Failed to fetch artifact", sdklog.String("artifact_name", artifact.Name), sdklog.Error(err))
+			// Continue with other artifacts
+		}
 	}
 
 	// Handle parameters
 	for _, param := range step.Inputs.Parameters {
 		logger.Debug("Processing parameter input", sdklog.String("parameter_name", param.Name))
-		// TODO: Implement parameter resolution from values or valueFrom
-		// For now, just log
+		
+		value, err := r.resolveParameter(ctx, jobFlow, &param)
+		if err != nil {
+			logger.Warn("Failed to resolve parameter", sdklog.String("parameter_name", param.Name), sdklog.Error(err))
+			// Continue with other parameters
+			continue
+		}
+
+		// Store resolved parameter (would be used in job template substitution)
+		logger.Debug("Resolved parameter", sdklog.String("parameter_name", param.Name), sdklog.String("value", value))
+		// TODO: Apply parameter to job template using template engine
 	}
 
 	return nil
@@ -1485,15 +1496,66 @@ func (r *JobFlowReconciler) handleStepOutputs(ctx context.Context, jobFlow *v1al
 	// Handle artifacts
 	for _, artifact := range step.Outputs.Artifacts {
 		logger.Debug("Processing artifact output", sdklog.String("artifact_name", artifact.Name))
-		// TODO: Implement artifact archiving/uploading to S3 or storage
-		// For now, just log
+		
+		// Archive artifact if configured
+		if artifact.Archive != nil {
+			// TODO: Implement artifact archiving
+			logger.Debug("Artifact archiving not yet fully implemented",
+				sdklog.String("artifact_name", artifact.Name),
+				sdklog.String("format", artifact.Archive.Format))
+		}
+
+		// Upload to S3 if configured
+		if artifact.S3 != nil {
+			if err := r.uploadArtifactToS3(ctx, jobFlow, artifact.Path, artifact.S3); err != nil {
+				logger.Warn("Failed to upload artifact to S3",
+					sdklog.String("artifact_name", artifact.Name),
+					sdklog.Error(err))
+				// Continue with other artifacts
+			}
+		}
+
+		// Store artifact in step status
+		if stepStatus.Outputs == nil {
+			stepStatus.Outputs = &v1alpha1.StepOutputs{}
+		}
+		stepStatus.Outputs.Artifacts = append(stepStatus.Outputs.Artifacts, v1alpha1.ArtifactOutput{
+			Name: artifact.Name,
+			Path: artifact.Path,
+		})
 	}
 
 	// Handle parameters
 	for _, param := range step.Outputs.Parameters {
 		logger.Debug("Processing parameter output", sdklog.String("parameter_name", param.Name))
-		// TODO: Implement parameter extraction from job outputs using JSONPath
-		// For now, just log
+		
+		// Extract parameter value using JSONPath
+		if param.ValueFrom.JSONPath != "" {
+			value, err := r.extractParameterFromJobOutput(ctx, jobFlow, step.Name, param.ValueFrom.JSONPath)
+			if err != nil {
+				logger.Warn("Failed to extract parameter from job output",
+					sdklog.String("parameter_name", param.Name),
+					sdklog.String("jsonpath", param.ValueFrom.JSONPath),
+					sdklog.Error(err))
+				// Continue with other parameters
+				continue
+			}
+
+			// Store parameter in step status
+			if stepStatus.Outputs == nil {
+				stepStatus.Outputs = &v1alpha1.StepOutputs{}
+			}
+			stepStatus.Outputs.Parameters = append(stepStatus.Outputs.Parameters, v1alpha1.ParameterOutput{
+				Name: param.Name,
+				ValueFrom: v1alpha1.ParameterValueFrom{
+					JSONPath: param.ValueFrom.JSONPath,
+				},
+			})
+
+			logger.Debug("Extracted parameter from job output",
+				sdklog.String("parameter_name", param.Name),
+				sdklog.String("value", value))
+		}
 	}
 
 	// Store outputs in step status (placeholder)
