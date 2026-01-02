@@ -61,6 +61,13 @@ type JobFlowReconciler struct {
 	dagMu    sync.RWMutex
 }
 
+// init initializes the reconciler if not already initialized.
+func (r *JobFlowReconciler) init() {
+	if r.dagCache == nil {
+		r.dagCache = make(map[string]*cachedDAG)
+	}
+}
+
 // cachedDAG stores computed DAG to avoid recomputation
 type cachedDAG struct {
 	specHash    string
@@ -1576,6 +1583,9 @@ func (r *JobFlowReconciler) handleManualApprovalStep(ctx context.Context, jobFlo
 
 // getOrBuildDAG returns cached DAG if spec hasn't changed, otherwise builds and caches it.
 func (r *JobFlowReconciler) getOrBuildDAG(jobFlow *v1alpha1.JobFlow) (*dag.Graph, []string, error) {
+	// Ensure cache is initialized
+	r.init()
+	
 	// Compute hash of steps spec
 	specHash := r.computeStepsHash(jobFlow.Spec.Steps)
 	cacheKey := fmt.Sprintf("%s/%s", jobFlow.Namespace, jobFlow.Name)
