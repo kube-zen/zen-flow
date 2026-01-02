@@ -149,40 +149,40 @@ func main() {
 
 	// Configure based on mode
 	switch *leaderElectionMode {
-		case "builtin":
-			leConfig = zenlead.LeaderElectionConfig{
-				Mode:       zenlead.BuiltIn,
-				ElectionID: electionID,
-				Namespace:  namespace,
-			}
-			setupLog.Info("Leader election mode: builtin (Profile B)", sdklog.Operation("leader_election_config"))
-		case "zenlead":
-			if *leaderElectionLeaseName == "" {
-				setupLog.Error(fmt.Errorf("--leader-election-lease-name is required when --leader-election-mode=zenlead"), "invalid configuration", sdklog.ErrorCode("INVALID_CONFIG"))
-				os.Exit(1)
-			}
-			leConfig = zenlead.LeaderElectionConfig{
-				Mode:      zenlead.ZenLeadManaged,
-				LeaseName: *leaderElectionLeaseName,
-				Namespace: namespace,
-			}
-			setupLog.Info("Leader election mode: zenlead managed (Profile C)", sdklog.Operation("leader_election_config"), sdklog.String("leaseName", *leaderElectionLeaseName))
-		case "disabled":
-			leConfig = zenlead.LeaderElectionConfig{
-				Mode: zenlead.Disabled,
-			}
-			setupLog.Warn("Leader election disabled - single replica only (unsafe if replicas > 1)", sdklog.Operation("leader_election_config"))
-		default:
-			setupLog.Error(fmt.Errorf("invalid --leader-election-mode: %q (must be builtin, zenlead, or disabled)", *leaderElectionMode), "invalid configuration", sdklog.ErrorCode("INVALID_CONFIG"))
+	case "builtin":
+		leConfig = zenlead.LeaderElectionConfig{
+			Mode:       zenlead.BuiltIn,
+			ElectionID: electionID,
+			Namespace:  namespace,
+		}
+		setupLog.Info("Leader election mode: builtin (Profile B)", sdklog.Operation("leader_election_config"))
+	case "zenlead":
+		if *leaderElectionLeaseName == "" {
+			setupLog.Error(fmt.Errorf("--leader-election-lease-name is required when --leader-election-mode=zenlead"), "invalid configuration", sdklog.ErrorCode("INVALID_CONFIG"))
 			os.Exit(1)
 		}
+		leConfig = zenlead.LeaderElectionConfig{
+			Mode:      zenlead.ZenLeadManaged,
+			LeaseName: *leaderElectionLeaseName,
+			Namespace: namespace,
+		}
+		setupLog.Info("Leader election mode: zenlead managed (Profile C)", sdklog.Operation("leader_election_config"), sdklog.String("leaseName", *leaderElectionLeaseName))
+	case "disabled":
+		leConfig = zenlead.LeaderElectionConfig{
+			Mode: zenlead.Disabled,
+		}
+		setupLog.Warn("Leader election disabled - single replica only (unsafe if replicas > 1)", sdklog.Operation("leader_election_config"))
+	default:
+		setupLog.Error(fmt.Errorf("invalid --leader-election-mode: %q (must be builtin, zenlead, or disabled)", *leaderElectionMode), "invalid configuration", sdklog.ErrorCode("INVALID_CONFIG"))
+		os.Exit(1)
+	}
 
-		// Prepare manager options with leader election
-		mgrOpts, err := zenlead.PrepareManagerOptions(&baseOpts, &leConfig)
-		if err != nil {
-			setupLog.Error(err, "Failed to prepare manager options", sdklog.ErrorCode("MANAGER_OPTIONS_ERROR"))
-			os.Exit(1)
-		}
+	// Prepare manager options with leader election
+	mgrOpts, err := zenlead.PrepareManagerOptions(&baseOpts, &leConfig)
+	if err != nil {
+		setupLog.Error(err, "Failed to prepare manager options", sdklog.ErrorCode("MANAGER_OPTIONS_ERROR"))
+		os.Exit(1)
+	}
 
 	// Get replica count from environment (set by Helm/Kubernetes)
 	replicaCount := 1
