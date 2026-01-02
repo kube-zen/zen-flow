@@ -23,7 +23,6 @@ import (
 	"strings"
 	"time"
 
-	"go.uber.org/zap"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -87,7 +86,7 @@ func (r *JobFlowReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	// Create logger with context and job flow fields
 	logger := sdklog.NewLogger("zen-flow-controller")
 	reconcileLogger := logger
-	reconcileFields := []zap.Field{
+	reconcileFields := []sdklog.Field{
 		sdklog.String("namespace", req.Namespace),
 		sdklog.String("name", req.Name),
 	}
