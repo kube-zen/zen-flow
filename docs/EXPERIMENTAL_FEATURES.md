@@ -58,33 +58,44 @@ zen-flow **default images include experimental Go 1.25 features** (`jsonv2`, `gr
 
 ## Building Images
 
-### Default Build (Includes Experimental Features)
+### Default Build (Builds Both Variants)
 
-**Default behavior:** All standard builds include experimental features for better performance.
+**Default behavior:** `make build-image` builds both GA-only and experimental variants.
 
 ```bash
-# Standard build - includes experimental features
+# Build both variants
 make build-image
-
-# Or directly
-docker build -t kubezen/zen-flow-controller:latest .
 ```
 
-**Result:** Image includes JSON v2 and Green Tea GC (expected 15-25% performance improvement).
+**Result:** Creates two image tags:
+- `kubezen/zen-flow-controller:<version>` (GA-only, default)
+- `kubezen/zen-flow-controller:<version>-experimental` (experimental, opt-in)
 
-### Build Without Experimental Features (GA-Only)
-
-If you need a GA-only build:
+### Build GA-Only Variant (Default)
 
 ```bash
-# Build GA-only image
-make build-image-no-experimental
+# Build GA-only variant only
+make build-image-ga-only
 
 # Or directly
-docker build --build-arg GOEXPERIMENT="" -t kubezen/zen-flow-controller:ga-only .
+docker build --build-arg GOEXPERIMENT="" -t kubezen/zen-flow-controller:latest .
 ```
 
-**Use Case:** Production environments with strict stability requirements (though experimental features show no stability issues in testing).
+**Result:** Creates GA-only image with tags: `<version>`, `latest`, `<version>-ga-only`
+
+### Build Experimental Variant (Opt-in)
+
+```bash
+# Build experimental variant only
+make build-image-experimental
+
+# Or directly
+docker build --build-arg GOEXPERIMENT=jsonv2,greenteagc -t kubezen/zen-flow-controller:<version>-experimental .
+```
+
+**Result:** Creates experimental image with tag: `<version>-experimental`
+
+**Use Case:** Performance-critical deployments where 15-25% improvement is valuable.
 
 ### Build With Specific Experiments
 

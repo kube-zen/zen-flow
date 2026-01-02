@@ -7,20 +7,19 @@ build:
 	@echo "✅ Build complete: bin/zen-flow-controller"
 	@ls -lh bin/zen-flow-controller | awk '{print "   Binary size: " $$5}'
 
-# Build optimized binary for production (with experimental features by default)
+# Build optimized binary for production (GA-only by default)
 build-release:
-	@echo "Building optimized zen-flow-controller binary with experimental features..."
+	@echo "Building optimized zen-flow-controller binary (GA-only)..."
 	@VERSION=$$(git describe --tags --always --dirty 2>/dev/null || echo "0.0.1-alpha"); \
 	COMMIT=$$(git rev-parse --short HEAD 2>/dev/null || echo "unknown"); \
 	BUILD_DATE=$$(date -u +"%Y-%m-%dT%H:%M:%SZ"); \
-	GOEXPERIMENT=jsonv2,greenteagc \
 	go build -trimpath \
 		-ldflags "-s -w \
 			-X 'main.version=$$VERSION' \
 			-X 'main.commit=$$COMMIT' \
 			-X 'main.buildDate=$$BUILD_DATE'" \
 		-o bin/zen-flow-controller ./cmd/zen-flow-controller
-	@echo "✅ Optimized build complete: bin/zen-flow-controller (with experimental features)"
+	@echo "✅ Optimized build complete: bin/zen-flow-controller (GA-only)"
 	@ls -lh bin/zen-flow-controller
 
 # Build optimized binary without experimental features (GA-only)
@@ -39,9 +38,37 @@ build-release-ga:
 	@ls -lh bin/zen-flow-controller
 
 # Build Docker image (requires Docker)
-# Default: Includes experimental features (jsonv2, greenteagc) for better performance
+# Builds both image variants (GA-only default, experimental optional)
 build-image:
-	@echo "Building Docker image with experimental features (jsonv2, greenteagc)..."
+	@echo "Building Docker images..."
+	@VERSION=$$(git describe --tags --always --dirty 2>/dev/null || echo "0.0.1-alpha"); \
+	COMMIT=$$(git rev-parse --short HEAD 2>/dev/null || echo "unknown"); \
+	BUILD_DATE=$$(date -u +"%Y-%m-%dT%H:%M:%SZ"); \
+	echo "Building GA-only variant (default)..."; \
+	docker build \
+		--build-arg VERSION=$$VERSION \
+		--build-arg COMMIT=$$COMMIT \
+		--build-arg BUILD_DATE=$$BUILD_DATE \
+		--build-arg GOEXPERIMENT="" \
+		-t kubezen/zen-flow-controller:$$VERSION \
+		-t kubezen/zen-flow-controller:latest \
+		-t kubezen/zen-flow-controller:$$VERSION-ga-only \
+		. && \
+	echo "Building experimental variant (15-25% better performance)..."; \
+	docker build \
+		--build-arg VERSION=$$VERSION \
+		--build-arg COMMIT=$$COMMIT \
+		--build-arg BUILD_DATE=$$BUILD_DATE \
+		--build-arg GOEXPERIMENT=jsonv2,greenteagc \
+		-t kubezen/zen-flow-controller:$$VERSION-experimental \
+		. && \
+	echo "✅ Both image variants built:"; \
+	echo "   - kubezen/zen-flow-controller:$$VERSION (GA-only, default)"; \
+	echo "   - kubezen/zen-flow-controller:$$VERSION-experimental (experimental, opt-in)"
+
+# Build Docker image GA-only variant (default)
+build-image-ga-only:
+	@echo "Building GA-only Docker image..."
 	@VERSION=$$(git describe --tags --always --dirty 2>/dev/null || echo "0.0.1-alpha"); \
 	COMMIT=$$(git rev-parse --short HEAD 2>/dev/null || echo "unknown"); \
 	BUILD_DATE=$$(date -u +"%Y-%m-%dT%H:%M:%SZ"); \
@@ -49,14 +76,16 @@ build-image:
 		--build-arg VERSION=$$VERSION \
 		--build-arg COMMIT=$$COMMIT \
 		--build-arg BUILD_DATE=$$BUILD_DATE \
-		--build-arg GOEXPERIMENT=jsonv2,greenteagc \
+		--build-arg GOEXPERIMENT="" \
 		-t kubezen/zen-flow-controller:$$VERSION \
-		-t kubezen/zen-flow-controller:latest .
-	@echo "✅ Docker image built: kubezen/zen-flow-controller:$$VERSION (with experimental features)"
+		-t kubezen/zen-flow-controller:latest \
+		-t kubezen/zen-flow-controller:$$VERSION-ga-only \
+		.
+	@echo "✅ GA-only image built: kubezen/zen-flow-controller:$$VERSION"
 
-# Build Docker image with experimental features (explicit)
+# Build Docker image experimental variant (opt-in)
 build-image-experimental:
-	@echo "Building Docker image with experimental features (jsonv2, greenteagc)..."
+	@echo "Building experimental Docker image..."
 	@VERSION=$$(git describe --tags --always --dirty 2>/dev/null || echo "0.0.1-alpha"); \
 	COMMIT=$$(git rev-parse --short HEAD 2>/dev/null || echo "unknown"); \
 	BUILD_DATE=$$(date -u +"%Y-%m-%dT%H:%M:%SZ"); \
@@ -66,23 +95,8 @@ build-image-experimental:
 		--build-arg BUILD_DATE=$$BUILD_DATE \
 		--build-arg GOEXPERIMENT=jsonv2,greenteagc \
 		-t kubezen/zen-flow-controller:$$VERSION-experimental \
-		-t kubezen/zen-flow-controller:experimental .
-	@echo "✅ Experimental Docker image built: kubezen/zen-flow-controller:$$VERSION-experimental"
-
-# Build Docker image without experimental features (GA-only)
-build-image-no-experimental:
-	@echo "Building Docker image without experimental features (GA-only)..."
-	@VERSION=$$(git describe --tags --always --dirty 2>/dev/null || echo "0.0.1-alpha"); \
-	COMMIT=$$(git rev-parse --short HEAD 2>/dev/null || echo "unknown"); \
-	BUILD_DATE=$$(date -u +"%Y-%m-%dT%H:%M:%SZ"); \
-	docker build \
-		--build-arg VERSION=$$VERSION \
-		--build-arg COMMIT=$$COMMIT \
-		--build-arg BUILD_DATE=$$BUILD_DATE \
-		--build-arg GOEXPERIMENT="" \
-		-t kubezen/zen-flow-controller:$$VERSION-ga \
-		-t kubezen/zen-flow-controller:ga-only .
-	@echo "✅ GA-only Docker image built: kubezen/zen-flow-controller:$$VERSION-ga"
+		.
+	@echo "✅ Experimental image built: kubezen/zen-flow-controller:$$VERSION-experimental"
 
 # Build multi-arch Docker images (requires Docker Buildx)
 build-image-multiarch:
