@@ -60,12 +60,16 @@ func TestJobFlowReconciler_uploadArtifactToS3_MissingSecret(t *testing.T) {
 		Key:    "test-key",
 		Endpoint: "http://localhost:9000",
 		AccessKeyIDSecretRef: &corev1.SecretKeySelector{
-			Name: "missing-secret",
-			Key:  "access-key",
+			LocalObjectReference: corev1.LocalObjectReference{
+				Name: "missing-secret",
+			},
+			Key: "access-key",
 		},
 		SecretAccessKeySecretRef: &corev1.SecretKeySelector{
-			Name: "missing-secret",
-			Key:  "secret-key",
+			LocalObjectReference: corev1.LocalObjectReference{
+				Name: "missing-secret",
+			},
+			Key: "secret-key",
 		},
 	}
 
@@ -135,12 +139,16 @@ func TestJobFlowReconciler_uploadArtifactToS3_WithSecrets(t *testing.T) {
 		Key:      "test-key",
 		Endpoint: "http://localhost:9000",
 		AccessKeyIDSecretRef: &corev1.SecretKeySelector{
-			Name: "s3-access-key",
-			Key:  "access-key",
+			LocalObjectReference: corev1.LocalObjectReference{
+				Name: "s3-access-key",
+			},
+			Key: "access-key",
 		},
 		SecretAccessKeySecretRef: &corev1.SecretKeySelector{
-			Name: "s3-secret-key",
-			Key:  "secret-key",
+			LocalObjectReference: corev1.LocalObjectReference{
+				Name: "s3-secret-key",
+			},
+			Key: "secret-key",
 		},
 	}
 
@@ -211,12 +219,16 @@ func TestJobFlowReconciler_uploadArtifactToS3_FileNotFound(t *testing.T) {
 		Key:      "test-key",
 		Endpoint: "http://localhost:9000",
 		AccessKeyIDSecretRef: &corev1.SecretKeySelector{
-			Name: "s3-access-key",
-			Key:  "access-key",
+			LocalObjectReference: corev1.LocalObjectReference{
+				Name: "s3-access-key",
+			},
+			Key: "access-key",
 		},
 		SecretAccessKeySecretRef: &corev1.SecretKeySelector{
-			Name: "s3-secret-key",
-			Key:  "secret-key",
+			LocalObjectReference: corev1.LocalObjectReference{
+				Name: "s3-secret-key",
+			},
+			Key: "secret-key",
 		},
 	}
 
@@ -235,13 +247,19 @@ func TestJobFlowReconciler_fetchArtifactFromHTTP(t *testing.T) {
 	targetPath := filepath.Join(tmpDir, "downloaded.txt")
 
 	// Test with invalid URL (will fail, but tests the function)
-	err := reconciler.fetchArtifactFromHTTP(ctx, "invalid-url", targetPath)
+	invalidArtifact := &v1alpha1.HTTPArtifact{
+		URL: "invalid-url",
+	}
+	err := reconciler.fetchArtifactFromHTTP(ctx, invalidArtifact, targetPath)
 	if err == nil {
 		t.Error("Expected error for invalid URL")
 	}
 
 	// Test with non-existent URL
-	err = reconciler.fetchArtifactFromHTTP(ctx, "http://nonexistent.example.com/artifact.txt", targetPath)
+	nonexistentArtifact := &v1alpha1.HTTPArtifact{
+		URL: "http://nonexistent.example.com/artifact.txt",
+	}
+	err = reconciler.fetchArtifactFromHTTP(ctx, nonexistentArtifact, targetPath)
 	if err == nil {
 		t.Error("Expected error for non-existent URL")
 	}
@@ -268,8 +286,10 @@ func TestJobFlowReconciler_getSecretValue(t *testing.T) {
 
 	// Test retrieving existing key
 	secretRef := &corev1.SecretKeySelector{
-		Name: "test-secret",
-		Key:  "key1",
+		LocalObjectReference: corev1.LocalObjectReference{
+			Name: "test-secret",
+		},
+		Key: "key1",
 	}
 	value, err := reconciler.getSecretValue(ctx, "default", secretRef)
 	if err != nil {
@@ -301,8 +321,10 @@ func TestJobFlowReconciler_getSecretValue(t *testing.T) {
 
 	// Test with default key (empty key should use DefaultConfigMapKey)
 	secretRef = &corev1.SecretKeySelector{
-		Name: "test-secret",
-		Key:  "", // Empty key
+		LocalObjectReference: corev1.LocalObjectReference{
+			Name: "test-secret",
+		},
+		Key: "", // Empty key
 	}
 	// This will fail because DefaultConfigMapKey ("value") doesn't exist in our test secret
 	_, err = reconciler.getSecretValue(ctx, "default", secretRef)
