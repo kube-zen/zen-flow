@@ -355,7 +355,7 @@ func TestSustainedLoad(t *testing.T) {
 					results.TotalJobFlowsCreated++
 				}
 				mu.Unlock()
-			}(counter)
+			})
 			counter++
 			time.Sleep(100 * time.Millisecond) // Rate limit
 		}
