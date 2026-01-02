@@ -143,6 +143,7 @@ func (r *JobFlowReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		reconcileLogger.Error(err, "Failed to check active deadline")
 		return ctrl.Result{}, err
 	} else if exceeded {
+		r.MetricsRecorder.RecordTimeout(jobFlow.Name, "", "jobflow_timeout")
 		reconcileLogger.Warn("Active deadline exceeded, marking JobFlow as failed")
 		jobFlow.Status.Phase = v1alpha1.JobFlowPhaseFailed
 		now := metav1.Now()
@@ -197,6 +198,7 @@ func (r *JobFlowReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	// P0.4: Check for cycles in DAG
 	sortedSteps, err := dagGraph.TopologicalSort()
 	if err != nil {
+		r.MetricsRecorder.RecordReconciliationError("dag_cycle")
 		reconcileLogger.Error(err, "DAG cycle detected", reconcileFields...)
 		jobFlow.Status.Phase = v1alpha1.JobFlowPhaseFailed
 		jobFlow.Status.Conditions = append(jobFlow.Status.Conditions, v1alpha1.JobFlowCondition{
@@ -224,6 +226,7 @@ func (r *JobFlowReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			reconcileLogger.Debug("Retryable error refreshing step statuses, will retry", reconcileFields...)
 			return ctrl.Result{Requeue: true}, err
 		}
+		r.MetricsRecorder.RecordReconciliationError("refresh_step_statuses_failed")
 		reconcileLogger.Error(err, "Failed to refresh step statuses", reconcileFields...)
 		// Continue with execution plan despite refresh errors
 	}
@@ -801,6 +804,9 @@ func (r *JobFlowReconciler) handleStepFailure(ctx context.Context, jobFlow *v1al
 		}
 	}
 
+	// Record step error
+	r.MetricsRecorder.RecordStepError(jobFlow.Name, stepName, "execution_failed")
+
 	if stepSpec != nil && stepSpec.ContinueOnFailure {
 		stepStatus.Phase = v1alpha1.StepPhaseFailed
 		stepStatus.Message = err.Error()
@@ -1120,6 +1126,7 @@ func (r *JobFlowReconciler) checkStepTimeouts(ctx context.Context, jobFlow *v1al
 
 		if now.After(timeoutTime) {
 			logger.Warn("Step timeout exceeded")
+			r.MetricsRecorder.RecordTimeout(jobFlow.Name, stepStatus.Name, "step_timeout")
 			// Mark step as failed due to timeout
 			stepStatus.Phase = v1alpha1.StepPhaseFailed
 			nowTime := metav1.Now()
@@ -1218,6 +1225,9 @@ func (r *JobFlowReconciler) handleStepRetry(ctx context.Context, jobFlow *v1alph
 	stepStatus.CompletionTime = nil
 	stepStatus.JobRef = nil
 	stepStatus.Message = ""
+
+	// Record retry metrics
+	r.MetricsRecorder.RecordStepRetry(jobFlow.Name, stepName, backoffDuration.Seconds())
 
 	logger.Info("Retrying step", sdklog.Int("retry_count", int(stepStatus.RetryCount)))
 	r.EventRecorder.Eventf(jobFlow, corev1.EventTypeNormal, "StepRetry", "Retrying step %s (attempt %d)", stepName, stepStatus.RetryCount)
@@ -1456,25 +1466,36 @@ func (r *JobFlowReconciler) checkManualApprovals(ctx context.Context, jobFlow *v
 
 	// Check if there are any steps waiting for approval
 	hasPendingApproval := false
+	pendingCount := 0
 	for i := range jobFlow.Status.Steps {
 		stepStatus := &jobFlow.Status.Steps[i]
 		if stepStatus.Phase == v1alpha1.StepPhasePendingApproval {
 			hasPendingApproval = true
+			pendingCount++
 
 			// Check if this step has been approved via annotation
 			approvalKey := fmt.Sprintf("%s/%s", v1alpha1.ApprovalAnnotationKey, stepStatus.Name)
 			if approved, exists := jobFlow.Annotations[approvalKey]; exists && approved == v1alpha1.ApprovalAnnotationValue {
 				// Step has been approved, mark it as succeeded
+				now := time.Now()
 				stepStatus.Phase = v1alpha1.StepPhaseSucceeded
-				stepStatus.CompletionTime = &metav1.Time{Time: time.Now()}
+				stepStatus.CompletionTime = &metav1.Time{Time: now}
 				if stepStatus.StartTime == nil {
-					stepStatus.StartTime = &metav1.Time{Time: time.Now()}
+					stepStatus.StartTime = &metav1.Time{Time: now}
+				} else {
+					// Record approval latency
+					latency := now.Sub(stepStatus.StartTime.Time).Seconds()
+					r.MetricsRecorder.RecordApprovalLatency(jobFlow.Name, stepStatus.Name, latency)
 				}
 				logger.Info("Manual approval step approved")
 				r.EventRecorder.Eventf(jobFlow, corev1.EventTypeNormal, "StepApproved", "Step %s has been approved", stepStatus.Name)
+				pendingCount-- // Decrement since this one is now approved
 			}
 		}
 	}
+
+	// Update approvals pending gauge
+	r.MetricsRecorder.UpdateApprovalsPending(jobFlow.Name, pendingCount)
 
 	// Update JobFlow phase based on approval status
 	if hasPendingApproval && jobFlow.Status.Phase != v1alpha1.JobFlowPhasePaused {

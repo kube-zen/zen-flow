@@ -82,6 +82,71 @@ var (
 		},
 		[]string{"flow", "phase"},
 	)
+
+	// StepErrorsTotal counts step errors by error type
+	StepErrorsTotal = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "zen_flow_step_errors_total",
+			Help: "Total number of step errors by error type",
+		},
+		[]string{"flow", "step", "error_type"}, // error_type: execution_failed, validation_failed, timeout, etc.
+	)
+
+	// ReconciliationErrorsTotal counts reconciliation errors
+	ReconciliationErrorsTotal = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "zen_flow_reconciliation_errors_total",
+			Help: "Total number of reconciliation errors",
+		},
+		[]string{"error_type"}, // error_type: dag_cycle, status_update_failed, etc.
+	)
+
+	// StepRetriesTotal counts step retry attempts
+	StepRetriesTotal = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "zen_flow_step_retries_total",
+			Help: "Total number of step retry attempts",
+		},
+		[]string{"flow", "step"},
+	)
+
+	// StepRetryBackoffDurationSeconds tracks retry backoff duration
+	StepRetryBackoffDurationSeconds = promauto.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "zen_flow_step_retry_backoff_duration_seconds",
+			Help:    "Step retry backoff duration in seconds",
+			Buckets: []float64{1, 5, 10, 30, 60, 300, 600}, // 1s, 5s, 10s, 30s, 1m, 5m, 10m
+		},
+		[]string{"flow", "step"},
+	)
+
+	// ApprovalsPending tracks the number of steps pending approval
+	ApprovalsPending = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "zen_flow_approvals_pending",
+			Help: "Number of steps currently pending approval",
+		},
+		[]string{"flow"},
+	)
+
+	// ApprovalLatencySeconds tracks approval latency
+	ApprovalLatencySeconds = promauto.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "zen_flow_approval_latency_seconds",
+			Help:    "Time from approval request to approval decision in seconds",
+			Buckets: []float64{60, 300, 600, 1800, 3600, 7200, 14400, 86400}, // 1m, 5m, 10m, 30m, 1h, 2h, 4h, 24h
+		},
+		[]string{"flow", "step"},
+	)
+
+	// TimeoutsTotal counts step and jobflow timeouts
+	TimeoutsTotal = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "zen_flow_timeouts_total",
+			Help: "Total number of timeouts",
+		},
+		[]string{"flow", "step", "timeout_type"}, // timeout_type: step_timeout, jobflow_timeout
+	)
 )
 
 // Recorder records metrics for JobFlow operations.
@@ -197,4 +262,42 @@ func (r *Recorder) RecordStepPhaseTransition(flow, step, oldPhase, newPhase stri
 		StepsCurrent.WithLabelValues(flow, oldPhase).Dec()
 	}
 	StepsCurrent.WithLabelValues(flow, newPhase).Inc()
+
+	// Update approvals pending gauge
+	if newPhase == "PendingApproval" {
+		ApprovalsPending.WithLabelValues(flow).Inc()
+	} else if oldPhase == "PendingApproval" {
+		ApprovalsPending.WithLabelValues(flow).Dec()
+	}
+}
+
+// RecordStepError records a step error
+func (r *Recorder) RecordStepError(flow, step, errorType string) {
+	StepErrorsTotal.WithLabelValues(flow, step, errorType).Inc()
+}
+
+// RecordReconciliationError records a reconciliation error
+func (r *Recorder) RecordReconciliationError(errorType string) {
+	ReconciliationErrorsTotal.WithLabelValues(errorType).Inc()
+}
+
+// RecordStepRetry records a step retry attempt
+func (r *Recorder) RecordStepRetry(flow, step string, backoffDurationSeconds float64) {
+	StepRetriesTotal.WithLabelValues(flow, step).Inc()
+	StepRetryBackoffDurationSeconds.WithLabelValues(flow, step).Observe(backoffDurationSeconds)
+}
+
+// RecordApprovalLatency records approval latency
+func (r *Recorder) RecordApprovalLatency(flow, step string, latencySeconds float64) {
+	ApprovalLatencySeconds.WithLabelValues(flow, step).Observe(latencySeconds)
+}
+
+// RecordTimeout records a timeout
+func (r *Recorder) RecordTimeout(flow, step, timeoutType string) {
+	TimeoutsTotal.WithLabelValues(flow, step, timeoutType).Inc()
+}
+
+// UpdateApprovalsPending updates the approvals pending gauge
+func (r *Recorder) UpdateApprovalsPending(flow string, count int) {
+	ApprovalsPending.WithLabelValues(flow).Set(float64(count))
 }
