@@ -4,6 +4,10 @@ FROM golang:1.25-alpine AS builder
 ARG VERSION=0.0.1-alpha
 ARG COMMIT=unknown
 ARG BUILD_DATE=unknown
+# GOEXPERIMENT: Enable experimental Go 1.25 features (jsonv2, greenteagc)
+# Default: "" (GA-only, no experimental features)
+# To enable: docker build --build-arg GOEXPERIMENT=jsonv2,greenteagc
+ARG GOEXPERIMENT=""
 
 WORKDIR /build
 
