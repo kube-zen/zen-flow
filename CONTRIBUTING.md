@@ -23,7 +23,7 @@ Thank you for your interest in contributing to zen-flow! This document provides 
 
 2. **Verify Go installation:**
    ```bash
-   go version  # Should be 1.24+
+   go version  # Should be 1.25+
    ```
 
 3. **Install dependencies:**

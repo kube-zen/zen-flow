@@ -273,7 +273,14 @@ func (in *Step) DeepCopyInto(out *Step) {
 	}
 	if in.Template.Raw != nil {
 		in, out := &in.Template, &out.Template
-		*out = runtime.RawExtension{Object: in.Object.DeepCopyObject()}
+		if in.Object != nil {
+			*out = runtime.RawExtension{Object: in.Object.DeepCopyObject()}
+		} else {
+			// Copy Raw bytes when Object is nil
+			rawCopy := make([]byte, len(in.Raw))
+			copy(rawCopy, in.Raw)
+			*out = runtime.RawExtension{Raw: rawCopy}
+		}
 	}
 	if in.Inputs != nil {
 		in, out := &in.Inputs, &out.Inputs

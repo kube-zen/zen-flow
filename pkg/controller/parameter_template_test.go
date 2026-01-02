@@ -140,6 +140,9 @@ func TestJobFlowReconciler_applyParametersToJobTemplate(t *testing.T) {
 					Name: "step1",
 					Template: runtime.RawExtension{
 						Raw: mustMarshalJobTemplate(&batchv1.Job{
+							ObjectMeta: metav1.ObjectMeta{
+								Name: "test-job",
+							},
 							Spec: batchv1.JobSpec{
 								Template: corev1.PodTemplateSpec{
 									Spec: corev1.PodSpec{

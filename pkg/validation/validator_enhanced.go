@@ -495,12 +495,17 @@ func validateWhenCondition(when string) error {
 
 	// For template expressions, basic validation
 	// Must contain template markers or be a valid expression
-	if strings.Contains(whenTrimmed, "{{") && strings.Contains(whenTrimmed, "}}") {
+	if strings.Contains(whenTrimmed, "{{") || strings.Contains(whenTrimmed, "}}") {
 		// Basic template validation - check for balanced braces
 		openBraces := strings.Count(whenTrimmed, "{{")
 		closeBraces := strings.Count(whenTrimmed, "}}")
 		if openBraces != closeBraces {
 			return fmt.Errorf("%w: unbalanced template braces in %q", ErrInvalidWhenCondition, when)
+		}
+		// If we have template markers, both must be present
+		if (strings.Contains(whenTrimmed, "{{") && !strings.Contains(whenTrimmed, "}}")) ||
+			(!strings.Contains(whenTrimmed, "{{") && strings.Contains(whenTrimmed, "}}")) {
+			return fmt.Errorf("%w: incomplete template expression in %q", ErrInvalidWhenCondition, when)
 		}
 		return nil
 	}
