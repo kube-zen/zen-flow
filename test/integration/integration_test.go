@@ -1,3 +1,5 @@
+//go:build integration
+
 /*
 Copyright 2025 Kube-ZEN Contributors
 
