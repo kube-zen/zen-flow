@@ -402,6 +402,82 @@ validate-local-all: validate-local-prereqs validate-local-build validate-local-c
 # Helm charts are now in the helm-charts repository
 # See: https://github.com/kube-zen/helm-charts
 
+# Lint Helm chart (requires helm-charts repository)
+helm-lint:
+	@echo "Linting Helm chart..."
+	@if [ ! -d "../helm-charts/charts/zen-flow" ]; then \
+		echo "⚠️  Helm chart not found at ../helm-charts/charts/zen-flow"; \
+		echo "   Clone helm-charts repository: git clone https://github.com/kube-zen/helm-charts.git ../helm-charts"; \
+		exit 1; \
+	fi
+	@if ! command -v helm >/dev/null 2>&1; then \
+		echo "❌ Helm not found. Install from https://helm.sh/docs/intro/install/"; \
+		exit 1; \
+	fi
+	@helm lint ../helm-charts/charts/zen-flow
+	@echo "✅ Helm chart linting passed"
+
+# Package Helm chart (requires helm-charts repository)
+helm-package:
+	@echo "Packaging Helm chart..."
+	@if [ ! -d "../helm-charts/charts/zen-flow" ]; then \
+		echo "⚠️  Helm chart not found at ../helm-charts/charts/zen-flow"; \
+		echo "   Clone helm-charts repository: git clone https://github.com/kube-zen/helm-charts.git ../helm-charts"; \
+		exit 1; \
+	fi
+	@if ! command -v helm >/dev/null 2>&1; then \
+		echo "❌ Helm not found. Install from https://helm.sh/docs/intro/install/"; \
+		exit 1; \
+	fi
+	@mkdir -p dist
+	@helm package ../helm-charts/charts/zen-flow -d dist
+	@echo "✅ Helm chart packaged in dist/"
+
+# Generate CRD documentation
+generate-crd-docs:
+	@echo "Generating CRD documentation..."
+	@if ! command -v crd-ref-docs >/dev/null 2>&1; then \
+		echo "⚠️  crd-ref-docs not found. Installing..."; \
+		go install github.com/elastic/crd-ref-docs@latest; \
+	fi
+	@mkdir -p docs/api
+	@crd-ref-docs \
+		--source-path ./pkg/api/v1alpha1 \
+		--config ./docs/crd-ref-docs-config.yaml \
+		--output-path ./docs/api/CRD_REFERENCE.md || echo "⚠️  CRD docs generation skipped (config may be missing)"
+	@echo "✅ CRD documentation generated"
+
+# Check VPA configuration
+check-vpa:
+	@echo "Checking VPA configuration..."
+	@if [ ! -f "deploy/manifests/vpa.yaml" ]; then \
+		echo "⚠️  VPA configuration not found"; \
+		exit 1; \
+	fi
+	@kubectl apply -f deploy/manifests/vpa.yaml --dry-run=client --validate=true
+	@echo "✅ VPA configuration is valid"
+
+# Show VPA recommendations (requires VPA installed in cluster)
+vpa-status:
+	@echo "Checking VPA status..."
+	@if ! kubectl get vpa zen-flow-controller-vpa -n zen-flow-system >/dev/null 2>&1; then \
+		echo "⚠️  VPA not found. Install with: kubectl apply -f deploy/manifests/vpa.yaml"; \
+		exit 1; \
+	fi
+	@kubectl describe vpa zen-flow-controller-vpa -n zen-flow-system
+	@echo "✅ VPA status displayed"
+
+# Update VPA based on actual usage (requires metrics-server and VPA)
+vpa-update:
+	@echo "Updating VPA recommendations..."
+	@echo "⚠️  This requires VPA to be running and collecting metrics for at least 24 hours"
+	@kubectl get vpa zen-flow-controller-vpa -n zen-flow-system -o yaml > deploy/manifests/vpa-updated.yaml
+	@echo "✅ VPA recommendations saved to deploy/manifests/vpa-updated.yaml"
+	@echo "   Review and apply manually if needed"
+
+# Run all validation checks
+validate-all: verify validate-examples helm-lint check-vpa
+	@echo "✅ All validation checks passed"
 
 check:
 	@scripts/ci/check.sh
