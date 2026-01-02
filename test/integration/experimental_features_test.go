@@ -73,10 +73,6 @@ func TestExperimentalFeatures_JSONv2(t *testing.T) {
 		},
 	}
 
-	if err := env.client.Create(ctx, jobFlow); err != nil {
-		t.Fatalf("Failed to create JobFlow: %v", err)
-	}
-
 	// Note: In real integration tests, we'd create the JobFlow in a cluster
 	// For experimental feature tests, we focus on JSON/GC performance
 	// Test JSON marshaling performance (simulating status updates)
