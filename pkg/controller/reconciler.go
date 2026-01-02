@@ -1780,48 +1780,46 @@ func (r *JobFlowReconciler) refreshStepStatusesParallel(ctx context.Context, job
 		return nil
 	}
 
-	// Use wait group for parallel execution
+	// Use wait group for parallel execution (Go 1.25: WaitGroup.Go simplifies goroutine management)
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 	var firstErr error
 
 	for _, task := range tasks {
-		wg.Add(1)
-		go func(t refreshTask) {
-			defer wg.Done()
-
+		task := task // Capture loop variable for goroutine
+		wg.Go(func() {
 			// Get the Job to check its current status
 			job := &batchv1.Job{}
-			jobKey := types.NamespacedName{Namespace: jobFlow.Namespace, Name: t.stepStatus.JobRef.Name}
+			jobKey := types.NamespacedName{Namespace: jobFlow.Namespace, Name: task.stepStatus.JobRef.Name}
 			if err := r.Get(ctx, jobKey, job); err != nil {
 				mu.Lock()
 				defer mu.Unlock()
 				if k8serrors.IsNotFound(err) {
 					// Job was deleted, mark step as failed
-					logger.Warn("Job not found, marking step as failed", sdklog.String("step", t.stepStatus.Name), sdklog.String("job", t.stepStatus.JobRef.Name))
-					t.stepStatus.Phase = v1alpha1.StepPhaseFailed
+					logger.Warn("Job not found, marking step as failed", sdklog.String("step", task.stepStatus.Name), sdklog.String("job", task.stepStatus.JobRef.Name))
+					task.stepStatus.Phase = v1alpha1.StepPhaseFailed
 					now := metav1.Now()
-					t.stepStatus.CompletionTime = &now
+					task.stepStatus.CompletionTime = &now
 					// Record step duration if start time is available
-					if t.stepStatus.StartTime != nil {
-						duration := now.Sub(t.stepStatus.StartTime.Time).Seconds()
-						r.MetricsRecorder.RecordStepDuration(jobFlow.Name, t.stepStatus.Name, "failure", duration)
+					if task.stepStatus.StartTime != nil {
+						duration := now.Sub(task.stepStatus.StartTime.Time).Seconds()
+						r.MetricsRecorder.RecordStepDuration(jobFlow.Name, task.stepStatus.Name, "failure", duration)
 					}
-					t.stepStatus.Message = fmt.Sprintf("Job %s not found", t.stepStatus.JobRef.Name)
+					task.stepStatus.Message = fmt.Sprintf("Job %s not found", task.stepStatus.JobRef.Name)
 					return
 				}
 				// Store first error
 				if firstErr == nil {
-					firstErr = jferrors.WithStep(jferrors.WithJobFlow(jferrors.Wrapf(err, "job_get_failed", "failed to get Job %s", t.stepStatus.JobRef.Name), jobFlow.Namespace, jobFlow.Name), t.stepStatus.Name)
+					firstErr = jferrors.WithStep(jferrors.WithJobFlow(jferrors.Wrapf(err, "job_get_failed", "failed to get Job %s", task.stepStatus.JobRef.Name), jobFlow.Namespace, jobFlow.Name), task.stepStatus.Name)
 				}
 				return
 			}
 
 			// Update step status based on job status (in memory only)
 			mu.Lock()
-			r.refreshStepStatusFromJob(jobFlow, t.stepStatus.Name, job)
+			r.refreshStepStatusFromJob(jobFlow, task.stepStatus.Name, job)
 			mu.Unlock()
-		}(task)
+		})
 	}
 
 	wg.Wait()

@@ -162,9 +162,8 @@ func TestConcurrentJobFlowCreation(t *testing.T) {
 	var mu sync.Mutex
 
 	for i := 0; i < config.JobFlowCount; i++ {
-		wg.Add(1)
-		go func(id int) {
-			defer wg.Done()
+		id := i // Capture loop variable for goroutine (Go 1.25: WaitGroup.Go)
+		wg.Go(func() {
 			semaphore <- struct{}{}
 			defer func() { <-semaphore }()
 
@@ -188,7 +187,7 @@ func TestConcurrentJobFlowCreation(t *testing.T) {
 				results.AverageCreationTime += creationTime
 			}
 			mu.Unlock()
-		}(i)
+		})
 	}
 
 	wg.Wait()
@@ -334,9 +333,8 @@ func TestSustainedLoad(t *testing.T) {
 		case <-ctx.Done():
 			goto done
 		default:
-			wg.Add(1)
-			go func(id int) {
-				defer wg.Done()
+			id := counter // Capture loop variable for goroutine (Go 1.25: WaitGroup.Go)
+			wg.Go(func() {
 				semaphore <- struct{}{}
 				defer func() { <-semaphore }()
 
