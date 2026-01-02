@@ -93,8 +93,8 @@ func main() {
 			return nil
 		}
 
-		// Validate
-		if err := validation.ValidateJobFlow(&jobFlow); err != nil {
+		// Validate using enhanced validation
+		if err := validation.ValidateJobFlowEnhanced(&jobFlow); err != nil {
 			errors = append(errors, fmt.Sprintf("%s: validation failed: %v", path, err))
 			return nil
 		}
