@@ -78,76 +78,9 @@ func TestEventRecorder_Event(t *testing.T) {
 	recorder.Event(obj, corev1.EventTypeNormal, "TestReason", "Test message")
 }
 
-func TestEventSinkWrapper_Create(t *testing.T) {
-	kubeClient := fake.NewSimpleClientset()
-	wrapper := &eventSinkWrapper{
-		events: kubeClient.CoreV1().Events("default"),
-	}
-
-	event := &corev1.Event{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-event",
-			Namespace: "default",
-		},
-		Reason:  "TestReason",
-		Message: "Test message",
-	}
-
-	// Test that Create doesn't panic
-	_, err := wrapper.Create(event)
-	if err != nil {
-		// Error is acceptable in test environment
-		t.Logf("Create returned error (may be expected): %v", err)
-	}
-}
-
-func TestEventSinkWrapper_Update(t *testing.T) {
-	kubeClient := fake.NewSimpleClientset()
-	wrapper := &eventSinkWrapper{
-		events: kubeClient.CoreV1().Events("default"),
-	}
-
-	event := &corev1.Event{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-event",
-			Namespace: "default",
-		},
-		Reason:  "TestReason",
-		Message: "Test message",
-	}
-
-	// Test that Update doesn't panic
-	_, err := wrapper.Update(event)
-	if err != nil {
-		// Error is acceptable in test environment
-		t.Logf("Update returned error (may be expected): %v", err)
-	}
-}
-
-func TestEventSinkWrapper_Patch(t *testing.T) {
-	kubeClient := fake.NewSimpleClientset()
-	wrapper := &eventSinkWrapper{
-		events: kubeClient.CoreV1().Events("default"),
-	}
-
-	event := &corev1.Event{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-event",
-			Namespace: "default",
-		},
-		Reason:  "TestReason",
-		Message: "Test message",
-	}
-
-	patchData := []byte(`{"message":"Updated message"}`)
-
-	// Test that Patch doesn't panic
-	_, err := wrapper.Patch(event, patchData)
-	if err != nil {
-		// Error is acceptable in test environment
-		t.Logf("Patch returned error (may be expected): %v", err)
-	}
-}
+// TestEventSinkWrapper tests removed - eventSinkWrapper is an internal implementation
+// detail of zen-sdk/pkg/events and is not part of the zen-flow controller API.
+// The EventRecorder tests above are sufficient to verify event recording functionality.
 
 func TestEventRecorder_WithJobFlow(t *testing.T) {
 	kubeClient := fake.NewSimpleClientset()

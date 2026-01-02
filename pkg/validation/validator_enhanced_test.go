@@ -167,8 +167,10 @@ func TestValidateParameterInput(t *testing.T) {
 				Name: "param1",
 				ValueFrom: &v1alpha1.ParameterValueFrom{
 					ConfigMapKeyRef: &corev1.ConfigMapKeySelector{
-						Name: "config",
-						Key:  "key",
+						LocalObjectReference: corev1.LocalObjectReference{
+							Name: "config",
+						},
+						Key: "key",
 					},
 				},
 			},
@@ -195,7 +197,12 @@ func TestValidateParameterInput(t *testing.T) {
 				Name:  "param1",
 				Value: "value1",
 				ValueFrom: &v1alpha1.ParameterValueFrom{
-					ConfigMapKeyRef: &corev1.ConfigMapKeySelector{Name: "config", Key: "key"},
+					ConfigMapKeyRef: &corev1.ConfigMapKeySelector{
+						LocalObjectReference: corev1.LocalObjectReference{
+							Name: "config",
+						},
+						Key: "key",
+					},
 				},
 			},
 			expectError: true,
