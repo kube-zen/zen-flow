@@ -46,7 +46,7 @@ func TestExperimentalFeatures_JSONv2(t *testing.T) {
 	jobFlow := &v1alpha1.JobFlow{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "jsonv2-test",
-			Namespace: env.namespace,
+			Namespace: "default",
 		},
 		Spec: v1alpha1.JobFlowSpec{
 			Steps: []v1alpha1.Step{
@@ -131,10 +131,10 @@ func TestExperimentalFeatures_GreenTeaGC(t *testing.T) {
 
 	for i := 0; i < numJobFlows; i++ {
 		jobFlow := &v1alpha1.JobFlow{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      fmt.Sprintf("gctest-%d", i),
-				Namespace: env.namespace,
-			},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("gctest-%d", i),
+			Namespace: "default",
+		},
 			Spec: v1alpha1.JobFlowSpec{
 				Steps: []v1alpha1.Step{
 					{
@@ -205,7 +205,7 @@ func TestExperimentalFeatures_Combined(t *testing.T) {
 	jobFlow := &v1alpha1.JobFlow{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "combined-test",
-			Namespace: env.namespace,
+			Namespace: "default",
 		},
 		Spec: v1alpha1.JobFlowSpec{
 			Steps: []v1alpha1.Step{
