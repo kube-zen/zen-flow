@@ -87,11 +87,13 @@ jobs:
             exit 0
           fi
           echo "Coverage: $COVERAGE%"
-          if (( $(echo "$COVERAGE < 75" | bc -l 2>/dev/null || echo "0") )); then
-            echo "❌ Coverage $COVERAGE% is below the 75% threshold"
+          THRESHOLD=75
+          COVERAGE_INT=$(echo "$COVERAGE" | cut -d. -f1)
+          if [ -z "$COVERAGE_INT" ] || [ "$COVERAGE_INT" -lt "$THRESHOLD" ]; then
+            echo "❌ Coverage $COVERAGE% is below the ${THRESHOLD}% threshold"
             exit 1
           else
-            echo "✅ Coverage $COVERAGE% meets the 75% threshold"
+            echo "✅ Coverage $COVERAGE% meets the ${THRESHOLD}% threshold"
           fi
       
       - name: Upload coverage
