@@ -33,6 +33,13 @@ rules:
   - apiGroups: [""]
     resources: ["persistentvolumeclaims", "configmaps"]
     verbs: ["get", "list", "watch", "create"]
+  # Secrets: Read-only access (for parameter resolution and S3 credentials)
+  # Justification: Controller reads Secrets for parameter resolution (ParameterValueFrom.SecretKeyRef)
+  # and S3 credential access (S3Config.AccessKeyIDSecretRef, S3Config.SecretAccessKeySecretRef).
+  # Does not create, update, or delete secrets.
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "watch"]
   # Events: Create only (for event recording)
   # Justification: Controller records events for JobFlow lifecycle. Does not read or update events.
   - apiGroups: [""]
