@@ -248,8 +248,8 @@ func (f *fakeFieldIndexer) IndexField(ctx context.Context, obj client.Object, fi
 // fakeWebhookServer implements webhook.Server for testing
 type fakeWebhookServer struct{}
 
-func (f *fakeWebhookServer) Register(validator webhook.Validator, mutator webhook.CustomDefaulter) error {
-	return nil
+func (f *fakeWebhookServer) Register(path string, handler http.Handler) {
+	// Webhook registration is not used in tests
 }
 
 func (f *fakeWebhookServer) Start(ctx context.Context) error {
@@ -258,6 +258,16 @@ func (f *fakeWebhookServer) Start(ctx context.Context) error {
 
 func (f *fakeWebhookServer) NeedLeaderElection() bool {
 	return false
+}
+
+func (f *fakeWebhookServer) StartedChecker() healthz.Checker {
+	return func(_ *http.Request) error {
+		return nil
+	}
+}
+
+func (f *fakeWebhookServer) WebhookMux() *http.ServeMux {
+	return http.NewServeMux()
 }
 
 // mustMarshalJobTemplate marshals a Job template to JSON with proper Kind and APIVersion.
