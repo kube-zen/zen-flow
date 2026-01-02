@@ -1,13 +1,15 @@
 # Experimental Go 1.25 Features
 
-**Status:** Opt-in, Enabled by Default  
+**Status:** Opt-in  
 **Warning:** Experimental features are not production-ready and may have stability issues.
 
 ## Overview
 
-zen-flow **default images include experimental Go 1.25 features** (`jsonv2`, `greenteagc`) for better performance.
+zen-flow supports two image variants:
+- **GA-only (default):** Built without experimental features
+- **Experimental (opt-in):** Includes Go 1.25 experimental features (`jsonv2`, `greenteagc`) for 15-25% better performance
 
-**Default Behavior:** All images built with `make build-image` or standard `docker build` include experimental features. To build GA-only images, use `make build-image-no-experimental` or `docker build --build-arg GOEXPERIMENT=""`.
+**Default Behavior:** `make build-image` builds both variants. Default tags (`latest`, `<version>`) are GA-only. Experimental variant uses `<version>-experimental` tag.
 
 ## Available Experimental Features
 
