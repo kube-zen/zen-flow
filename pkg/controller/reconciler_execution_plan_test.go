@@ -123,7 +123,7 @@ func TestJobFlowReconciler_createExecutionPlan_Additional(t *testing.T) {
 				Spec: v1alpha1.JobFlowSpec{
 					Steps: []v1alpha1.Step{
 						{Name: "step1", ContinueOnFailure: true},
-						{Name: "step2", DependsOn: []string{"step1"}},
+						{Name: "step2", Dependencies: []string{"step1"}},
 					},
 				},
 				Status: v1alpha1.JobFlowStatus{

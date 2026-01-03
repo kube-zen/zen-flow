@@ -85,7 +85,7 @@ func TestJobFlowReconciler_checkStepTimeouts_Additional(t *testing.T) {
 					Steps: []v1alpha1.Step{
 						{
 							Name:              "step1",
-							TimeoutSeconds:    intPtr(60), // 1 minute
+							TimeoutSeconds:    int64Ptr(60), // 1 minute
 							ContinueOnFailure: true,
 						},
 					},
@@ -604,9 +604,7 @@ func intPtr(i int) *int {
 	return &i
 }
 
-func int64Ptr(i int64) *int64 {
-	return &i
-}
+// int64Ptr helper is defined in reconciler_test.go
 
 func floatPtr(f float64) *float64 {
 	return &f
