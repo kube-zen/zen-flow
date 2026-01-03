@@ -87,18 +87,42 @@ func TestLoad_FromEnvironment(t *testing.T) {
 	if err := os.Setenv("ZEN_FLOW_UID_TRUNCATE_LENGTH", "12"); err != nil {
 		t.Fatalf("Failed to set environment variable: %v", err)
 	}
-	os.Setenv("ZEN_FLOW_DEFAULT_BACKOFF_LIMIT", "10")
-	os.Setenv("ZEN_FLOW_DEFAULT_RETRY_LIMIT", "5")
-	os.Setenv("ZEN_FLOW_DEFAULT_BACKOFF_BASE", "2s")
-	os.Setenv("ZEN_FLOW_DEFAULT_BACKOFF_FACTOR", "3.0")
-	os.Setenv("ZEN_FLOW_DEFAULT_CONFIGMAP_KEY", "data")
-	os.Setenv("ZEN_FLOW_DEFAULT_CONTAINER_NAME", "worker")
-	os.Setenv("ZEN_FLOW_DEFAULT_CONCURRENCY_POLICY", "Allow")
-	os.Setenv("ZEN_FLOW_DEFAULT_CONTENT_TYPE", "application/json")
-	os.Setenv("ZEN_FLOW_DEFAULT_ARCHIVE_FORMAT", "zip")
-	os.Setenv("ZEN_FLOW_DEFAULT_COMPRESSION", "gzip")
-	os.Setenv("ZEN_FLOW_DEFAULT_DIR_PERM", "0777")
-	os.Setenv("ZEN_FLOW_DEFAULT_FILE_PERM", "0666")
+	if err := os.Setenv("ZEN_FLOW_DEFAULT_BACKOFF_LIMIT", "10"); err != nil {
+		t.Fatalf("Failed to set environment variable: %v", err)
+	}
+	if err := os.Setenv("ZEN_FLOW_DEFAULT_RETRY_LIMIT", "5"); err != nil {
+		t.Fatalf("Failed to set environment variable: %v", err)
+	}
+	if err := os.Setenv("ZEN_FLOW_DEFAULT_BACKOFF_BASE", "2s"); err != nil {
+		t.Fatalf("Failed to set environment variable: %v", err)
+	}
+	if err := os.Setenv("ZEN_FLOW_DEFAULT_BACKOFF_FACTOR", "3.0"); err != nil {
+		t.Fatalf("Failed to set environment variable: %v", err)
+	}
+	if err := os.Setenv("ZEN_FLOW_DEFAULT_CONFIGMAP_KEY", "data"); err != nil {
+		t.Fatalf("Failed to set environment variable: %v", err)
+	}
+	if err := os.Setenv("ZEN_FLOW_DEFAULT_CONTAINER_NAME", "worker"); err != nil {
+		t.Fatalf("Failed to set environment variable: %v", err)
+	}
+	if err := os.Setenv("ZEN_FLOW_DEFAULT_CONCURRENCY_POLICY", "Allow"); err != nil {
+		t.Fatalf("Failed to set environment variable: %v", err)
+	}
+	if err := os.Setenv("ZEN_FLOW_DEFAULT_CONTENT_TYPE", "application/json"); err != nil {
+		t.Fatalf("Failed to set environment variable: %v", err)
+	}
+	if err := os.Setenv("ZEN_FLOW_DEFAULT_ARCHIVE_FORMAT", "zip"); err != nil {
+		t.Fatalf("Failed to set environment variable: %v", err)
+	}
+	if err := os.Setenv("ZEN_FLOW_DEFAULT_COMPRESSION", "gzip"); err != nil {
+		t.Fatalf("Failed to set environment variable: %v", err)
+	}
+	if err := os.Setenv("ZEN_FLOW_DEFAULT_DIR_PERM", "0777"); err != nil {
+		t.Fatalf("Failed to set environment variable: %v", err)
+	}
+	if err := os.Setenv("ZEN_FLOW_DEFAULT_FILE_PERM", "0666"); err != nil {
+		t.Fatalf("Failed to set environment variable: %v", err)
+	}
 
 	defer func() {
 		os.Clearenv()
