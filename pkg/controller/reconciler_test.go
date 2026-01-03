@@ -63,6 +63,7 @@ func setupReconcilerTest(t *testing.T) (*JobFlowReconciler, client.Client, *kube
 	}
 
 	fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
+	//nolint:staticcheck // NewSimpleClientset is deprecated but NewClientset requires applyconfig generation
 	kubeClient := kubefake.NewSimpleClientset()
 
 	metricsRecorder := metrics.NewRecorder()
@@ -278,6 +279,7 @@ func TestNewJobFlowReconciler(t *testing.T) {
 	}
 
 	fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
+	//nolint:staticcheck // NewSimpleClientset is deprecated but NewClientset requires applyconfig generation
 	kubeClient := kubefake.NewSimpleClientset()
 
 	metricsRecorder := metrics.NewRecorder()
