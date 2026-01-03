@@ -156,9 +156,15 @@ func TestLoad_FromEnvironment(t *testing.T) {
 
 func TestLoad_InvalidValues(t *testing.T) {
 	// Set invalid environment variables - should fall back to defaults
-	os.Setenv("ZEN_FLOW_DEFAULT_TTL_SECONDS", "invalid")
-	os.Setenv("ZEN_FLOW_CONFIGMAP_SIZE_LIMIT", "not-a-number")
-	os.Setenv("ZEN_FLOW_DEFAULT_BACKOFF_BASE", "invalid-duration")
+	if err := os.Setenv("ZEN_FLOW_DEFAULT_TTL_SECONDS", "invalid"); err != nil {
+		t.Fatalf("Failed to set environment variable: %v", err)
+	}
+	if err := os.Setenv("ZEN_FLOW_CONFIGMAP_SIZE_LIMIT", "not-a-number"); err != nil {
+		t.Fatalf("Failed to set environment variable: %v", err)
+	}
+	if err := os.Setenv("ZEN_FLOW_DEFAULT_BACKOFF_BASE", "invalid-duration"); err != nil {
+		t.Fatalf("Failed to set environment variable: %v", err)
+	}
 
 	defer func() {
 		os.Clearenv()
