@@ -126,11 +126,17 @@ func getEnvFileMode(key string, defaultValue os.FileMode) os.FileMode {
 	if value := os.Getenv(key); value != "" {
 		// Parse as octal (e.g., "0755")
 		if intValue, err := strconv.ParseInt(value, 8, 32); err == nil {
-			return os.FileMode(intValue)
+			//nolint:gosec // FileMode is uint32, ParseInt with bitSize 32 ensures value fits
+			if intValue >= 0 && intValue <= 0xFFFFFFFF {
+				return os.FileMode(uint32(intValue))
+			}
 		}
 		// Try decimal as fallback
 		if intValue, err := strconv.ParseInt(value, 10, 32); err == nil {
-			return os.FileMode(intValue)
+			//nolint:gosec // FileMode is uint32, ParseInt with bitSize 32 ensures value fits
+			if intValue >= 0 && intValue <= 0xFFFFFFFF {
+				return os.FileMode(uint32(intValue))
+			}
 		}
 	}
 	return defaultValue

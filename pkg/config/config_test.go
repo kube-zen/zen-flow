@@ -78,50 +78,28 @@ func TestLoad_Defaults(t *testing.T) {
 
 func TestLoad_FromEnvironment(t *testing.T) {
 	// Set environment variables
-	if err := os.Setenv("ZEN_FLOW_DEFAULT_TTL_SECONDS", "3600"); err != nil {
-		t.Fatalf("Failed to set environment variable: %v", err)
+	envVars := map[string]string{
+		"ZEN_FLOW_DEFAULT_TTL_SECONDS":        "3600",
+		"ZEN_FLOW_CONFIGMAP_SIZE_LIMIT":       "2048000",
+		"ZEN_FLOW_UID_TRUNCATE_LENGTH":         "12",
+		"ZEN_FLOW_DEFAULT_BACKOFF_LIMIT":      "10",
+		"ZEN_FLOW_DEFAULT_RETRY_LIMIT":        "5",
+		"ZEN_FLOW_DEFAULT_BACKOFF_BASE":       "2s",
+		"ZEN_FLOW_DEFAULT_BACKOFF_FACTOR":     "3.0",
+		"ZEN_FLOW_DEFAULT_CONFIGMAP_KEY":      "data",
+		"ZEN_FLOW_DEFAULT_CONTAINER_NAME":     "worker",
+		"ZEN_FLOW_DEFAULT_CONCURRENCY_POLICY": "Allow",
+		"ZEN_FLOW_DEFAULT_CONTENT_TYPE":       "application/json",
+		"ZEN_FLOW_DEFAULT_ARCHIVE_FORMAT":     "zip",
+		"ZEN_FLOW_DEFAULT_COMPRESSION":       "gzip",
+		"ZEN_FLOW_DEFAULT_DIR_PERM":          "0777",
+		"ZEN_FLOW_DEFAULT_FILE_PERM":         "0666",
 	}
-	if err := os.Setenv("ZEN_FLOW_CONFIGMAP_SIZE_LIMIT", "2048000"); err != nil {
-		t.Fatalf("Failed to set environment variable: %v", err)
-	}
-	if err := os.Setenv("ZEN_FLOW_UID_TRUNCATE_LENGTH", "12"); err != nil {
-		t.Fatalf("Failed to set environment variable: %v", err)
-	}
-	if err := os.Setenv("ZEN_FLOW_DEFAULT_BACKOFF_LIMIT", "10"); err != nil {
-		t.Fatalf("Failed to set environment variable: %v", err)
-	}
-	if err := os.Setenv("ZEN_FLOW_DEFAULT_RETRY_LIMIT", "5"); err != nil {
-		t.Fatalf("Failed to set environment variable: %v", err)
-	}
-	if err := os.Setenv("ZEN_FLOW_DEFAULT_BACKOFF_BASE", "2s"); err != nil {
-		t.Fatalf("Failed to set environment variable: %v", err)
-	}
-	if err := os.Setenv("ZEN_FLOW_DEFAULT_BACKOFF_FACTOR", "3.0"); err != nil {
-		t.Fatalf("Failed to set environment variable: %v", err)
-	}
-	if err := os.Setenv("ZEN_FLOW_DEFAULT_CONFIGMAP_KEY", "data"); err != nil {
-		t.Fatalf("Failed to set environment variable: %v", err)
-	}
-	if err := os.Setenv("ZEN_FLOW_DEFAULT_CONTAINER_NAME", "worker"); err != nil {
-		t.Fatalf("Failed to set environment variable: %v", err)
-	}
-	if err := os.Setenv("ZEN_FLOW_DEFAULT_CONCURRENCY_POLICY", "Allow"); err != nil {
-		t.Fatalf("Failed to set environment variable: %v", err)
-	}
-	if err := os.Setenv("ZEN_FLOW_DEFAULT_CONTENT_TYPE", "application/json"); err != nil {
-		t.Fatalf("Failed to set environment variable: %v", err)
-	}
-	if err := os.Setenv("ZEN_FLOW_DEFAULT_ARCHIVE_FORMAT", "zip"); err != nil {
-		t.Fatalf("Failed to set environment variable: %v", err)
-	}
-	if err := os.Setenv("ZEN_FLOW_DEFAULT_COMPRESSION", "gzip"); err != nil {
-		t.Fatalf("Failed to set environment variable: %v", err)
-	}
-	if err := os.Setenv("ZEN_FLOW_DEFAULT_DIR_PERM", "0777"); err != nil {
-		t.Fatalf("Failed to set environment variable: %v", err)
-	}
-	if err := os.Setenv("ZEN_FLOW_DEFAULT_FILE_PERM", "0666"); err != nil {
-		t.Fatalf("Failed to set environment variable: %v", err)
+
+	for key, value := range envVars {
+		if err := os.Setenv(key, value); err != nil {
+			t.Fatalf("Failed to set environment variable %s: %v", key, err)
+		}
 	}
 
 	defer func() {
@@ -131,50 +109,28 @@ func TestLoad_FromEnvironment(t *testing.T) {
 	cfg := Load()
 
 	// Verify environment values
-	if cfg.DefaultTTLSeconds != 3600 {
-		t.Errorf("Expected DefaultTTLSeconds 3600, got %d", cfg.DefaultTTLSeconds)
-	}
-	if cfg.ConfigMapSizeLimit != 2048000 {
-		t.Errorf("Expected ConfigMapSizeLimit 2048000, got %d", cfg.ConfigMapSizeLimit)
-	}
-	if cfg.UIDTruncateLength != 12 {
-		t.Errorf("Expected UIDTruncateLength 12, got %d", cfg.UIDTruncateLength)
-	}
-	if cfg.DefaultBackoffLimit != 10 {
-		t.Errorf("Expected DefaultBackoffLimit 10, got %d", cfg.DefaultBackoffLimit)
-	}
-	if cfg.DefaultRetryLimit != 5 {
-		t.Errorf("Expected DefaultRetryLimit 5, got %d", cfg.DefaultRetryLimit)
-	}
-	if cfg.DefaultBackoffBase != 2*time.Second {
-		t.Errorf("Expected DefaultBackoffBase 2s, got %v", cfg.DefaultBackoffBase)
-	}
-	if cfg.DefaultBackoffFactor != 3.0 {
-		t.Errorf("Expected DefaultBackoffFactor 3.0, got %f", cfg.DefaultBackoffFactor)
-	}
-	if cfg.DefaultConfigMapKey != "data" {
-		t.Errorf("Expected DefaultConfigMapKey 'data', got %s", cfg.DefaultConfigMapKey)
-	}
-	if cfg.DefaultContainerName != "worker" {
-		t.Errorf("Expected DefaultContainerName 'worker', got %s", cfg.DefaultContainerName)
-	}
-	if cfg.DefaultConcurrencyPolicy != "Allow" {
-		t.Errorf("Expected DefaultConcurrencyPolicy 'Allow', got %s", cfg.DefaultConcurrencyPolicy)
-	}
-	if cfg.DefaultContentType != "application/json" {
-		t.Errorf("Expected DefaultContentType 'application/json', got %s", cfg.DefaultContentType)
-	}
-	if cfg.DefaultArchiveFormat != "zip" {
-		t.Errorf("Expected DefaultArchiveFormat 'zip', got %s", cfg.DefaultArchiveFormat)
-	}
-	if cfg.DefaultCompression != "gzip" {
-		t.Errorf("Expected DefaultCompression 'gzip', got %s", cfg.DefaultCompression)
-	}
-	if cfg.DefaultDirPerm != 0777 {
-		t.Errorf("Expected DefaultDirPerm 0777, got %o", cfg.DefaultDirPerm)
-	}
-	if cfg.DefaultFilePerm != 0666 {
-		t.Errorf("Expected DefaultFilePerm 0666, got %o", cfg.DefaultFilePerm)
+	verifyConfigValue(t, "DefaultTTLSeconds", cfg.DefaultTTLSeconds, 3600)
+	verifyConfigValue(t, "ConfigMapSizeLimit", cfg.ConfigMapSizeLimit, 2048000)
+	verifyConfigValue(t, "UIDTruncateLength", cfg.UIDTruncateLength, 12)
+	verifyConfigValue(t, "DefaultBackoffLimit", cfg.DefaultBackoffLimit, 10)
+	verifyConfigValue(t, "DefaultRetryLimit", cfg.DefaultRetryLimit, 5)
+	verifyConfigValue(t, "DefaultBackoffBase", cfg.DefaultBackoffBase, 2*time.Second)
+	verifyConfigValue(t, "DefaultBackoffFactor", cfg.DefaultBackoffFactor, 3.0)
+	verifyConfigValue(t, "DefaultConfigMapKey", cfg.DefaultConfigMapKey, "data")
+	verifyConfigValue(t, "DefaultContainerName", cfg.DefaultContainerName, "worker")
+	verifyConfigValue(t, "DefaultConcurrencyPolicy", cfg.DefaultConcurrencyPolicy, "Allow")
+	verifyConfigValue(t, "DefaultContentType", cfg.DefaultContentType, "application/json")
+	verifyConfigValue(t, "DefaultArchiveFormat", cfg.DefaultArchiveFormat, "zip")
+	verifyConfigValue(t, "DefaultCompression", cfg.DefaultCompression, "gzip")
+	verifyConfigValue(t, "DefaultDirPerm", cfg.DefaultDirPerm, os.FileMode(0777))
+	verifyConfigValue(t, "DefaultFilePerm", cfg.DefaultFilePerm, os.FileMode(0666))
+}
+
+// verifyConfigValue is a helper to reduce cyclomatic complexity
+func verifyConfigValue(t *testing.T, name string, got, want interface{}) {
+	t.Helper()
+	if got != want {
+		t.Errorf("Expected %s %v, got %v", name, want, got)
 	}
 }
 

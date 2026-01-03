@@ -57,6 +57,7 @@ func main() {
 			return nil
 		}
 
+		//nolint:gosec // path comes from filepath.Walk which validates paths
 		data, err := os.ReadFile(path)
 		if err != nil {
 			errors = append(errors, fmt.Sprintf("%s: failed to read file: %v", path, err))

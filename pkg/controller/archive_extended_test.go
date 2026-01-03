@@ -33,12 +33,12 @@ func TestJobFlowReconciler_createTarArchive_WithMultipleFiles(t *testing.T) {
 
 	tmpDir := t.TempDir()
 	sourceDir := filepath.Join(tmpDir, "source")
-	if err := os.MkdirAll(sourceDir, 0755); err != nil {
+	if err := os.MkdirAll(sourceDir, 0750); err != nil {
 		t.Fatalf("Failed to create source directory: %v", err)
 	}
 
 	testFile := filepath.Join(sourceDir, "test.txt")
-	if err := os.WriteFile(testFile, []byte("test content"), 0644); err != nil {
+	if err := os.WriteFile(testFile, []byte("test content"), 0600); err != nil {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
 
@@ -76,12 +76,12 @@ func TestJobFlowReconciler_createTarArchive_Gzip(t *testing.T) {
 
 	tmpDir := t.TempDir()
 	sourceDir := filepath.Join(tmpDir, "source")
-	if err := os.MkdirAll(sourceDir, 0755); err != nil {
+	if err := os.MkdirAll(sourceDir, 0750); err != nil {
 		t.Fatalf("Failed to create source directory: %v", err)
 	}
 
 	testFile := filepath.Join(sourceDir, "test.txt")
-	if err := os.WriteFile(testFile, []byte("test content"), 0644); err != nil {
+	if err := os.WriteFile(testFile, []byte("test content"), 0600); err != nil {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
 
@@ -129,12 +129,12 @@ func TestJobFlowReconciler_createZipArchive_WithMultipleFiles(t *testing.T) {
 
 	tmpDir := t.TempDir()
 	sourceDir := filepath.Join(tmpDir, "source")
-	if err := os.MkdirAll(sourceDir, 0755); err != nil {
+	if err := os.MkdirAll(sourceDir, 0750); err != nil {
 		t.Fatalf("Failed to create source directory: %v", err)
 	}
 
 	testFile := filepath.Join(sourceDir, "test.txt")
-	if err := os.WriteFile(testFile, []byte("test content"), 0644); err != nil {
+	if err := os.WriteFile(testFile, []byte("test content"), 0600); err != nil {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
 
