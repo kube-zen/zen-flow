@@ -81,12 +81,16 @@ jobs:
         run: make test-unit
       
       - name: Generate coverage
+        env:
+          GOWORK: off
         run: |
           # Clear test cache and remove old coverage file to ensure fresh calculation
           go clean -testcache
           rm -f coverage.out coverage.html
           # Generate coverage (without -race for consistent results)
-          go test -coverprofile=coverage.out -covermode=atomic -timeout=10m ./pkg/...
+          # Use -count=1 to disable test caching and ensure fresh results
+          # Use GOWORK=off to avoid workspace interference
+          go test -count=1 -coverprofile=coverage.out -covermode=atomic -timeout=10m ./pkg/...
           go tool cover -html=coverage.out -o coverage.html
       
       - name: Check coverage threshold
