@@ -82,8 +82,9 @@ jobs:
       
       - name: Generate coverage
         run: |
-          # Clear test cache to ensure fresh coverage calculation
+          # Clear test cache and remove old coverage file to ensure fresh calculation
           go clean -testcache
+          rm -f coverage.out coverage.html
           # Generate coverage (without -race for consistent results)
           go test -coverprofile=coverage.out -covermode=atomic -timeout=10m ./pkg/...
           go tool cover -html=coverage.out -o coverage.html
