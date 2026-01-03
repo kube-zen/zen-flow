@@ -23,7 +23,6 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/kube-zen/zen-flow/pkg/api/v1alpha1"
 )
@@ -83,7 +82,7 @@ func TestJobFlowReconciler_getContainerExitCodes(t *testing.T) {
 				},
 			},
 			expectedCodes: map[string]int32{
-				"main":   1,
+				"main":    1,
 				"sidecar": 2,
 			},
 			expectedLength: 2,
@@ -155,10 +154,10 @@ func TestJobFlowReconciler_matchExitCodes(t *testing.T) {
 	reconciler, _, _ := setupReconcilerTest(t)
 
 	tests := []struct {
-		name       string
-		exitCodes  map[string]int32
-		rule       *v1alpha1.PodFailurePolicyOnExitCodes
-		expected   bool
+		name      string
+		exitCodes map[string]int32
+		rule      *v1alpha1.PodFailurePolicyOnExitCodes
+		expected  bool
 	}{
 		{
 			name: "In operator - matching exit code",
@@ -589,4 +588,3 @@ func TestJobFlowReconciler_checkPodFailurePolicy_NonFailedPod(t *testing.T) {
 		t.Error("Expected shouldFail=true when no failed pods match rules")
 	}
 }
-
