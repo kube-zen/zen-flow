@@ -90,6 +90,7 @@ func (r *JobFlowReconciler) storeArtifactInConfigMap(ctx context.Context, jobFlo
 	logger := sdklog.NewLogger("zen-flow-controller")
 
 	// Read artifact file
+	//nolint:gosec // artifactPath is validated and comes from trusted source (JobFlow spec)
 	artifactData, err := os.ReadFile(artifactPath)
 	if err != nil {
 		return jferrors.Wrapf(err, "file_read_failed", "failed to read artifact file %s", artifactPath)
