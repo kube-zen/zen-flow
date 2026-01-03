@@ -35,6 +35,4 @@ import (
 // TestJobFlowReconciler_checkBackoffLimit is tested in reconciler_test.go
 // TestJobFlowReconciler_shouldDeleteJobFlow is tested in reconciler_test.go
 
-func intPtr(i int) *int {
-	return &i
-}
+// intPtr helper is defined in reconciler_timeout_retry_test.go

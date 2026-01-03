@@ -46,7 +46,7 @@ func TestJobFlowReconciler_getOrBuildDAG_Additional(t *testing.T) {
 				Spec: v1alpha1.JobFlowSpec{
 					Steps: []v1alpha1.Step{
 						{Name: "step1"},
-						{Name: "step2", DependsOn: []string{"step1"}},
+						{Name: "step2", Dependencies: []string{"step1"}},
 					},
 				},
 			},
@@ -62,7 +62,7 @@ func TestJobFlowReconciler_getOrBuildDAG_Additional(t *testing.T) {
 				Spec: v1alpha1.JobFlowSpec{
 					Steps: []v1alpha1.Step{
 						{Name: "step1"},
-						{Name: "step2", DependsOn: []string{"step1"}},
+						{Name: "step2", Dependencies: []string{"step1"}},
 					},
 				},
 			},
@@ -79,7 +79,7 @@ func TestJobFlowReconciler_getOrBuildDAG_Additional(t *testing.T) {
 					Steps: []v1alpha1.Step{
 						{Name: "step1"},
 						{Name: "step2"},
-						{Name: "step3", DependsOn: []string{"step1", "step2"}},
+						{Name: "step3", Dependencies: []string{"step1", "step2"}},
 					},
 				},
 			},
@@ -94,8 +94,8 @@ func TestJobFlowReconciler_getOrBuildDAG_Additional(t *testing.T) {
 				},
 				Spec: v1alpha1.JobFlowSpec{
 					Steps: []v1alpha1.Step{
-						{Name: "step1", DependsOn: []string{"step2"}},
-						{Name: "step2", DependsOn: []string{"step1"}},
+						{Name: "step1", Dependencies: []string{"step2"}},
+						{Name: "step2", Dependencies: []string{"step1"}},
 					},
 				},
 			},
@@ -165,7 +165,7 @@ func TestJobFlowReconciler_getOrBuildDAG_Cache(t *testing.T) {
 		Spec: v1alpha1.JobFlowSpec{
 			Steps: []v1alpha1.Step{
 				{Name: "step1"},
-				{Name: "step2", DependsOn: []string{"step1"}},
+				{Name: "step2", Dependencies: []string{"step1"}},
 			},
 		},
 	}
