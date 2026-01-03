@@ -47,6 +47,7 @@ func TestJobFlowReconciler_writeBinaryArtifact(t *testing.T) {
 	}
 
 	// Verify content
+	//nolint:gosec // targetPath comes from test temp directory, safe
 	content, err := os.ReadFile(targetPath)
 	if err != nil {
 		t.Fatalf("Failed to read binary artifact file: %v", err)

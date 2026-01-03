@@ -61,7 +61,7 @@ var (
 	ErrInvalidJobTemplate = errors.New("invalid Job template")
 
 	// ErrEmptyJobTemplate indicates Job template cannot be empty.
-	ErrEmptyJobTemplate = errors.New("Job template cannot be empty")
+	ErrEmptyJobTemplate = errors.New("job template cannot be empty")
 
 	// ErrInvalidResourceTemplate indicates invalid resource template.
 	ErrInvalidResourceTemplate = errors.New("invalid resource template")
@@ -264,7 +264,7 @@ func validateStepTemplate(step *v1alpha1.Step, index int) error {
 func validateJobSpec(jobSpec *batchv1.JobSpec) error {
 	// Validate template
 	if len(jobSpec.Template.Spec.Containers) == 0 {
-		return fmt.Errorf("Job spec must have at least one container")
+		return fmt.Errorf("job spec must have at least one container")
 	}
 
 	// Validate containers
