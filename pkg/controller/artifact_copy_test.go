@@ -90,6 +90,7 @@ func TestJobFlowReconciler_copyArtifactFromConfigMap_BinaryData(t *testing.T) {
 		t.Fatalf("Failed to copy binary artifact: %v", err)
 	}
 
+	//nolint:gosec // targetPath comes from test temp directory, safe
 	content, err := os.ReadFile(targetPath)
 	if err != nil {
 		t.Fatalf("Failed to read binary artifact file: %v", err)
