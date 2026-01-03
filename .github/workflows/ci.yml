@@ -87,10 +87,23 @@ jobs:
           # Clear test cache and remove old coverage file to ensure fresh calculation
           go clean -testcache
           rm -f coverage.out coverage.html
+          # Verify coverage.out is removed
+          if [ -f coverage.out ]; then
+            echo "⚠️  Warning: coverage.out still exists after rm, removing again..."
+            rm -f coverage.out
+          fi
           # Generate coverage (without -race for consistent results)
           # Use -count=1 to disable test caching and ensure fresh results
           # Use GOWORK=off to avoid workspace interference
           go test -count=1 -coverprofile=coverage.out -covermode=atomic -timeout=10m ./pkg/...
+          # Verify coverage.out was generated
+          if [ ! -f coverage.out ]; then
+            echo "❌ Error: coverage.out was not generated!"
+            exit 1
+          fi
+          # Show coverage summary for debugging
+          echo "Coverage file generated. Summary:"
+          go tool cover -func=coverage.out | grep -v "pkg/api/v1alpha1" | grep "total:" || true
           go tool cover -html=coverage.out -o coverage.html
       
       - name: Check coverage threshold
