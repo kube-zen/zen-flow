@@ -553,8 +553,14 @@ func (r *JobFlowReconciler) createExecutionPlan(dagGraph *dag.Graph, jobFlow *v1
 	// Find steps that are ready to execute
 	for _, stepName := range sortedSteps {
 		stepStatus := r.getStepStatus(jobFlow.Status, stepName)
-		if stepStatus != nil && stepStatus.Phase != v1alpha1.StepPhasePending && stepStatus.Phase != v1alpha1.StepPhasePendingApproval {
-			continue // Already started or completed
+		// Skip steps that are already started, completed, or pending approval
+		if stepStatus != nil {
+			if stepStatus.Phase == v1alpha1.StepPhasePendingApproval {
+				continue // Pending approval steps are not ready
+			}
+			if stepStatus.Phase != v1alpha1.StepPhasePending {
+				continue // Already started or completed
+			}
 		}
 
 		// Check if dependencies are satisfied
