@@ -123,6 +123,7 @@ func (r *JobFlowReconciler) createTarArchive(sourcePath, archivePath string, gzi
 		}
 
 		// Open file
+		//nolint:gosec // filePath comes from filepath.Walk which validates paths
 		file, err := os.Open(filePath)
 		if err != nil {
 			return fmt.Errorf("failed to open file %s: %w", filePath, err)
@@ -196,6 +197,7 @@ func (r *JobFlowReconciler) createZipArchive(sourcePath, archivePath string) err
 		}
 
 		// Open file
+		//nolint:gosec // filePath comes from filepath.Walk which validates paths
 		file, err := os.Open(filePath)
 		if err != nil {
 			return fmt.Errorf("failed to open file %s: %w", filePath, err)
