@@ -1,3 +1,5 @@
+//go:build integration
+
 /*
 Copyright 2025 Kube-ZEN Contributors
 
@@ -90,9 +92,9 @@ func TestIntegration_ArtifactCopying_ConfigMap(t *testing.T) {
 					Inputs: &v1alpha1.StepInputs{
 						Artifacts: []v1alpha1.ArtifactInput{
 							{
-								Name:     "artifact",
-								FromStep: "step1",
-								Path:     "/input/artifact.txt",
+								Name: "artifact",
+								From: "step1/artifact",
+								Path: "/input/artifact.txt",
 							},
 						},
 					},
