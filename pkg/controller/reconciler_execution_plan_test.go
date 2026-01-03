@@ -29,7 +29,9 @@ import (
 	"github.com/kube-zen/zen-flow/pkg/controller/metrics"
 )
 
-func TestJobFlowReconciler_createExecutionPlan(t *testing.T) {
+// TestJobFlowReconciler_createExecutionPlan is tested in reconciler_test.go
+
+func TestJobFlowReconciler_createExecutionPlan_Additional(t *testing.T) {
 	tests := []struct {
 		name        string
 		jobFlow     *v1alpha1.JobFlow

@@ -32,7 +32,9 @@ import (
 	"github.com/kube-zen/zen-flow/pkg/controller/metrics"
 )
 
-func TestJobFlowReconciler_checkStepTimeouts(t *testing.T) {
+// TestJobFlowReconciler_checkStepTimeouts is tested in reconciler_test.go
+
+func TestJobFlowReconciler_checkStepTimeouts_Additional(t *testing.T) {
 	now := time.Now()
 	tests := []struct {
 		name    string
@@ -190,7 +192,9 @@ func TestJobFlowReconciler_checkStepTimeouts(t *testing.T) {
 	}
 }
 
-func TestJobFlowReconciler_handleStepRetry(t *testing.T) {
+// TestJobFlowReconciler_handleStepRetry is tested in reconciler_test.go
+
+func TestJobFlowReconciler_handleStepRetry_Additional(t *testing.T) {
 	now := time.Now()
 	tests := []struct {
 		name    string
@@ -372,7 +376,9 @@ func TestJobFlowReconciler_handleStepRetry(t *testing.T) {
 	}
 }
 
-func TestJobFlowReconciler_calculateBackoff(t *testing.T) {
+// TestJobFlowReconciler_calculateBackoff is tested in reconciler_test.go
+
+func TestJobFlowReconciler_calculateBackoff_Additional(t *testing.T) {
 	tests := []struct {
 		name       string
 		retryPolicy *v1alpha1.RetryPolicy
@@ -469,7 +475,9 @@ func TestJobFlowReconciler_calculateBackoff(t *testing.T) {
 	}
 }
 
-func TestJobFlowReconciler_applyPodFailureAction(t *testing.T) {
+// TestJobFlowReconciler_applyPodFailureAction is tested in reconciler_test.go
+
+func TestJobFlowReconciler_applyPodFailureAction_Additional(t *testing.T) {
 	tests := []struct {
 		name   string
 		action string
