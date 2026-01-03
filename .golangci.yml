@@ -1,8 +1,6 @@
 # golangci-lint configuration for OSS repos
 # Based on Kubernetes and OSS best practices
 
-version: 2
-
 run:
   timeout: 5m
   tests: true
@@ -36,20 +34,6 @@ linters-settings:
       - G204  # Subprocess launched with variable (acceptable for kubectl)
 
 issues:
-  exclude-dirs:
-    - vendor
-    - third_party
-    - testdata
-    - examples
-    - tmp
-    - bin
-    - deploy
-    - charts
-    - .github
-  exclude-files:
-    - ".*\\.pb\\.go$"
-    - ".*_generated\\.go$"
-    - "zz_generated\\.deepcopy\\.go$"
   exclude-rules:
     # Exclude test files from some checks
     - path: _test\.go
@@ -63,16 +47,32 @@ issues:
       linters:
         - all
     
+    # Exclude vendor, examples, etc.
+    - path: vendor/.*
+      linters:
+        - all
+    - path: examples/.*
+      linters:
+        - all
+    - path: deploy/.*
+      linters:
+        - all
+    - path: charts/.*
+      linters:
+        - all
+    
     # Prevent fmt.Print* in production code (use structured logging instead)
     - text: "fmt\\.(Print|Printf|Println)"
       linters:
         - gosec
       # Allow in test files only
       path: "^((?!_test\\.go).)*$"
+  max-issues-per-linter: 0
+  max-same-issues: 0
 
 output:
   formats:
-    colored-line-number: true
+    - format: colored-line-number
   print-issued-lines: true
   print-linter-name: true
 
