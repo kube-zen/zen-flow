@@ -95,7 +95,11 @@ jobs:
           # Generate coverage (without -race for consistent results)
           # Use -count=1 to disable test caching and ensure fresh results
           # Use GOWORK=off to avoid workspace interference
-          go test -count=1 -coverprofile=coverage.out -covermode=atomic -timeout=10m ./pkg/...
+          # Exclude pkg/api/v1alpha1 from coverage (it's generated code with 0% coverage)
+          # We need to list all packages we want to include
+          go test -count=1 -coverprofile=coverage.out -covermode=atomic -timeout=10m \
+            -coverpkg=./pkg/config/...,./pkg/controller/...,./pkg/controller/dag/...,./pkg/controller/metrics/...,./pkg/errors/...,./pkg/validation/...,./pkg/webhook/... \
+            ./pkg/...
           # Verify coverage.out was generated
           if [ ! -f coverage.out ]; then
             echo "❌ Error: coverage.out was not generated!"
@@ -122,37 +126,15 @@ jobs:
           echo "Coverage breakdown by package:"
           go tool cover -func=coverage.out | grep -v "pkg/api/v1alpha1" | grep -E "^\S+\.go:" | awk -F: '{pkg=$1; gsub(/.*\//, "", pkg); gsub(/\.go$/, "", pkg); files[pkg]++; sum[pkg]+=$3} END {for (p in files) if (files[p] > 0) printf "  %-30s %.1f%%\n", p, sum[p]/files[p]}' | sort
           echo ""
-          # Calculate coverage manually excluding pkg/api/v1alpha1
-          # The 'total:' line includes all packages, so we need to calculate it ourselves
-          # by summing statements and covered statements from non-v1alpha1 packages
-          COVERAGE=$(go tool cover -func=coverage.out 2>/dev/null | \
-            grep -v "pkg/api/v1alpha1" | \
-            grep -E "^\S+\.go:" | \
-            awk -F: '{
-              # Extract percentage (format: file.go:line: function percentage%)
-              if (match($0, /([0-9]+\.[0-9]+)%/, arr)) {
-                sum += arr[1]
-                count++
-              }
-            } END {
-              if (count > 0) {
-                printf "%.1f", sum/count
-              } else {
-                print "0.0"
-              }
-            }')
-          
-          # Fallback: if manual calculation fails, try the total line (but it includes v1alpha1)
-          if [ -z "$COVERAGE" ] || [ "$COVERAGE" = "0.0" ]; then
-            echo "⚠️  Manual calculation failed, trying total line (may include v1alpha1):"
-            COVERAGE=$(go tool cover -func=coverage.out 2>/dev/null | grep "total:" | awk '{print $3}' | sed 's/%//')
-          fi
+          # Extract coverage from total line
+          # Since we use -coverpkg to exclude pkg/api/v1alpha1, the total is correct
+          COVERAGE=$(go tool cover -func=coverage.out 2>/dev/null | grep "total:" | awk '{print $3}' | sed 's/%//')
           
           if [ -z "$COVERAGE" ]; then
-            echo "⚠️  Could not determine coverage percentage"
+            echo "❌ Could not determine coverage percentage"
             echo "Full coverage output:"
-            go tool cover -func=coverage.out 2>/dev/null | tail -5
-            exit 0
+            go tool cover -func=coverage.out 2>/dev/null | tail -10
+            exit 1
           fi
           echo "Coverage: $COVERAGE%"
           THRESHOLD=75
