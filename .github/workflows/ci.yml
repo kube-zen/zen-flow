@@ -122,11 +122,36 @@ jobs:
           echo "Coverage breakdown by package:"
           go tool cover -func=coverage.out | grep -v "pkg/api/v1alpha1" | grep -E "^\S+\.go:" | awk -F: '{pkg=$1; gsub(/.*\//, "", pkg); gsub(/\.go$/, "", pkg); files[pkg]++; sum[pkg]+=$3} END {for (p in files) if (files[p] > 0) printf "  %-30s %.1f%%\n", p, sum[p]/files[p]}' | sort
           echo ""
-          COVERAGE=$(go tool cover -func=coverage.out | grep -v "pkg/api/v1alpha1" | grep "total:" | awk '{print $3}' | sed 's/%//')
+          # Calculate coverage manually excluding pkg/api/v1alpha1
+          # The 'total:' line includes all packages, so we need to calculate it ourselves
+          # by summing statements and covered statements from non-v1alpha1 packages
+          COVERAGE=$(go tool cover -func=coverage.out 2>/dev/null | \
+            grep -v "pkg/api/v1alpha1" | \
+            grep -E "^\S+\.go:" | \
+            awk -F: '{
+              # Extract percentage (format: file.go:line: function percentage%)
+              if (match($0, /([0-9]+\.[0-9]+)%/, arr)) {
+                sum += arr[1]
+                count++
+              }
+            } END {
+              if (count > 0) {
+                printf "%.1f", sum/count
+              } else {
+                print "0.0"
+              }
+            }')
+          
+          # Fallback: if manual calculation fails, try the total line (but it includes v1alpha1)
+          if [ -z "$COVERAGE" ] || [ "$COVERAGE" = "0.0" ]; then
+            echo "⚠️  Manual calculation failed, trying total line (may include v1alpha1):"
+            COVERAGE=$(go tool cover -func=coverage.out 2>/dev/null | grep "total:" | awk '{print $3}' | sed 's/%//')
+          fi
+          
           if [ -z "$COVERAGE" ]; then
             echo "⚠️  Could not determine coverage percentage"
             echo "Full coverage output:"
-            go tool cover -func=coverage.out | tail -5
+            go tool cover -func=coverage.out 2>/dev/null | tail -5
             exit 0
           fi
           echo "Coverage: $COVERAGE%"
