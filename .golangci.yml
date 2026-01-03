@@ -1,5 +1,5 @@
-# golangci-lint configuration for OSS repos
-# Based on Kubernetes and OSS best practices
+# golangci-lint configuration for zen-flow
+# Minimal config for v2.7.2 compatibility
 
 version: "2"
 
@@ -10,69 +10,15 @@ run:
 
 linters:
   enable:
-    # Essential linters
-    - gofmt          # Checks whether code was gofmt-ed
-    - govet          # Vet examines Go source code and reports suspicious constructs
-    - errcheck       # Checks for unchecked errors
-    - staticcheck    # Staticcheck is a go vet on steroids
-    - unused         # Checks for unused constants, variables, functions and types
-    - gosimple       # Linter for Go source code that specializes in simplifying code
-    - ineffassign    # Detects when assignments to existing variables are not used
-    - misspell       # Finds commonly misspelled English words in comments
-    - gocyclo        # Computes and checks the cyclomatic complexity of functions
-    - gosec          # Inspects source code for security problems
-    - goimports      # Goimports does everything that gofmt does plus imports sorting
-
-linters-settings:
-  gofmt:
-    simplify: true
-  
-  gocyclo:
-    min-complexity: 15
-  
-  gosec:
-    excludes:
-      - G104  # Audit errors not checked (covered by errcheck)
-      - G204  # Subprocess launched with variable (acceptable for kubectl)
-
-issues:
-  exclude-rules:
-    # Exclude test files from some checks
-    - path: _test\.go
-      linters:
-        - gocyclo
-        - errcheck
-        - gosec
-    
-    # Exclude generated files
-    - path: zz_generated\.deepcopy\.go
-      linters:
-        - all
-    
-    # Exclude vendor, examples, etc.
-    - path: vendor/.*
-      linters:
-        - all
-    - path: examples/.*
-      linters:
-        - all
-    - path: deploy/.*
-      linters:
-        - all
-    - path: charts/.*
-      linters:
-        - all
-    
-    # Prevent fmt.Print* in production code (use structured logging instead)
-    - text: "fmt\\.(Print|Printf|Println)"
-      linters:
-        - gosec
-      # Allow in test files only
-      path: "^((?!_test\\.go).)*$"
-  max-issues-per-linter: 0
-  max-same-issues: 0
-
-output:
-  print-issued-lines: true
-  print-linter-name: true
+    - gofmt
+    - govet
+    - errcheck
+    - staticcheck
+    - unused
+    - gosimple
+    - ineffassign
+    - misspell
+    - gocyclo
+    - gosec
+    - goimports
 
