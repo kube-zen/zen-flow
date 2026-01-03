@@ -28,63 +28,7 @@ import (
 )
 
 // TestJobFlowReconciler_computeStepsHash is tested in reconciler_dag_cache_test.go
-// This test is removed to avoid duplication
-
-func TestJobFlowReconciler_computeStepsHash_Additional(t *testing.T) {
-	tests := []struct {
-		name  string
-		steps []v1alpha1.Step
-		want  string
-	}{
-		{
-			name:  "empty steps",
-			steps: []v1alpha1.Step{},
-			want:  "", // Empty hash for empty steps
-		},
-		{
-			name: "single step",
-			steps: []v1alpha1.Step{
-				{Name: "step1"},
-			},
-			want: "", // Non-empty hash
-		},
-		{
-			name: "multiple steps",
-			steps: []v1alpha1.Step{
-				{Name: "step1"},
-				{Name: "step2", DependsOn: []string{"step1"}},
-			},
-			want: "", // Non-empty hash
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			r := &JobFlowReconciler{}
-			got := r.computeStepsHash(tt.steps)
-
-			// Hash should be consistent for same input
-			got2 := r.computeStepsHash(tt.steps)
-			if got != got2 {
-				t.Errorf("computeStepsHash() is not consistent: first = %v, second = %v", got, got2)
-			}
-
-			// Hash should be different for different input
-			if len(tt.steps) > 0 {
-				differentSteps := []v1alpha1.Step{
-					{Name: "different-step"},
-				}
-				got3 := r.computeStepsHash(differentSteps)
-				if got == got3 {
-					t.Errorf("computeStepsHash() should produce different hashes for different inputs")
-				}
-			}
-		})
-	}
-}
-
 // TestJobFlowReconciler_getOrBuildDAG is tested in reconciler_dag_cache_test.go
-// This test is removed to avoid duplication
 
 func TestJobFlowReconciler_getOrBuildDAG_Additional(t *testing.T) {
 	tests := []struct {
