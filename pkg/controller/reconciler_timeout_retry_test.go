@@ -600,10 +600,6 @@ func TestJobFlowReconciler_updateConditions(t *testing.T) {
 	}
 }
 
-func intPtr(i int) *int {
-	return &i
-}
-
 // int64Ptr helper is defined in reconciler_test.go
 
 func floatPtr(f float64) *float64 {
