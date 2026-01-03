@@ -52,7 +52,7 @@ func (r *JobFlowReconciler) copyArtifactFromConfigMap(ctx context.Context, confi
 	}
 
 	// Create target directory if needed
-	if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(targetPath), 0750); err != nil {
 		return jferrors.Wrapf(err, "mkdir_failed", "failed to create directory for %s", targetPath)
 	}
 
@@ -72,7 +72,7 @@ func (r *JobFlowReconciler) copyArtifactFromConfigMap(ctx context.Context, confi
 // writeBinaryArtifact writes binary artifact data to a file
 func (r *JobFlowReconciler) writeBinaryArtifact(data []byte, targetPath string) error {
 	// Create target directory if needed
-	if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(targetPath), 0750); err != nil {
 		return jferrors.Wrapf(err, "mkdir_failed", "failed to create directory for %s", targetPath)
 	}
 

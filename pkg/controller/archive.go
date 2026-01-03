@@ -164,6 +164,7 @@ func (r *JobFlowReconciler) createTarArchive(sourcePath, archivePath string, gzi
 // createZipArchive creates a zip archive
 func (r *JobFlowReconciler) createZipArchive(sourcePath, archivePath string) error {
 	// Create archive file
+	//nolint:gosec // archivePath is validated and comes from trusted source (JobFlow spec)
 	archiveFile, err := os.Create(archivePath)
 	if err != nil {
 		return fmt.Errorf("failed to create archive file: %w", err)

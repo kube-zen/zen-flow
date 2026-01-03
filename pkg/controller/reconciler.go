@@ -1262,6 +1262,7 @@ func (r *JobFlowReconciler) handleStepRetry(ctx context.Context, jobFlow *v1alph
 	}
 
 	// Check retry limit
+	//nolint:gosec // DefaultRetryLimit is a small constant, conversion is safe
 	limit := int32(DefaultRetryLimit)
 	if stepSpec.RetryPolicy.Limit > 0 {
 		limit = stepSpec.RetryPolicy.Limit
