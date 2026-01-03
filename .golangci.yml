@@ -19,5 +19,4 @@ linters:
     - misspell
     - gocyclo
     - gosec
-    - goimports
 
