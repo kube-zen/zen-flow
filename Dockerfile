@@ -28,7 +28,6 @@ COPY . .
 # To enable experimental features: docker build --build-arg GOEXPERIMENT=jsonv2,greenteagc
 # Available experiments: jsonv2, greenteagc
 # Experimental features provide 15-25% performance improvement but are opt-in
-ARG GOEXPERIMENT=""
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
     GOEXPERIMENT=${GOEXPERIMENT} \
     go build \
