@@ -109,11 +109,21 @@ func TestLoad_FromEnvironment(t *testing.T) {
 	cfg := Load()
 
 	// Verify environment values
-	verifyConfigValue(t, "DefaultTTLSeconds", cfg.DefaultTTLSeconds, 3600)
-	verifyConfigValue(t, "ConfigMapSizeLimit", cfg.ConfigMapSizeLimit, 2048000)
-	verifyConfigValue(t, "UIDTruncateLength", cfg.UIDTruncateLength, 12)
-	verifyConfigValue(t, "DefaultBackoffLimit", cfg.DefaultBackoffLimit, 10)
-	verifyConfigValue(t, "DefaultRetryLimit", cfg.DefaultRetryLimit, 5)
+	if cfg.DefaultTTLSeconds != 3600 {
+		t.Errorf("Expected DefaultTTLSeconds 3600, got %d", cfg.DefaultTTLSeconds)
+	}
+	if cfg.ConfigMapSizeLimit != 2048000 {
+		t.Errorf("Expected ConfigMapSizeLimit 2048000, got %d", cfg.ConfigMapSizeLimit)
+	}
+	if cfg.UIDTruncateLength != 12 {
+		t.Errorf("Expected UIDTruncateLength 12, got %d", cfg.UIDTruncateLength)
+	}
+	if cfg.DefaultBackoffLimit != 10 {
+		t.Errorf("Expected DefaultBackoffLimit 10, got %d", cfg.DefaultBackoffLimit)
+	}
+	if cfg.DefaultRetryLimit != 5 {
+		t.Errorf("Expected DefaultRetryLimit 5, got %d", cfg.DefaultRetryLimit)
+	}
 	verifyConfigValue(t, "DefaultBackoffBase", cfg.DefaultBackoffBase, 2*time.Second)
 	verifyConfigValue(t, "DefaultBackoffFactor", cfg.DefaultBackoffFactor, 3.0)
 	verifyConfigValue(t, "DefaultConfigMapKey", cfg.DefaultConfigMapKey, "data")

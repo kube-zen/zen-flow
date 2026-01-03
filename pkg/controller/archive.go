@@ -79,6 +79,7 @@ func (r *JobFlowReconciler) archiveArtifact(artifactPath string, archiveConfig *
 // createTarArchive creates a tar archive (optionally gzipped)
 func (r *JobFlowReconciler) createTarArchive(sourcePath, archivePath string, gzipCompress bool) error {
 	// Create archive file
+	//nolint:gosec // archivePath is validated and comes from trusted source (JobFlow spec)
 	archiveFile, err := os.Create(archivePath)
 	if err != nil {
 		return fmt.Errorf("failed to create archive file: %w", err)

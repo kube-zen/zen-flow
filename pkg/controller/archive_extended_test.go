@@ -197,7 +197,7 @@ func TestJobFlowReconciler_archiveArtifact_ZipGzip(t *testing.T) {
 
 	tmpDir := t.TempDir()
 	testFile := filepath.Join(tmpDir, "test.txt")
-	if err := os.WriteFile(testFile, []byte("test content"), 0644); err != nil {
+	if err := os.WriteFile(testFile, []byte("test content"), 0600); err != nil {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
 
