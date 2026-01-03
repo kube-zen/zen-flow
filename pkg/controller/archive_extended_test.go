@@ -49,6 +49,7 @@ func TestJobFlowReconciler_createTarArchive_WithMultipleFiles(t *testing.T) {
 	}
 
 	// Verify archive can be read
+	//nolint:gosec // archivePath comes from test temp directory, safe
 	file, err := os.Open(archivePath)
 	if err != nil {
 		t.Fatalf("Failed to open archive: %v", err)
@@ -92,6 +93,7 @@ func TestJobFlowReconciler_createTarArchive_Gzip(t *testing.T) {
 	}
 
 	// Verify archive can be read
+	//nolint:gosec // archivePath comes from test temp directory, safe
 	file, err := os.Open(archivePath)
 	if err != nil {
 		t.Fatalf("Failed to open archive: %v", err)

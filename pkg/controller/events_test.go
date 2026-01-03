@@ -86,6 +86,7 @@ func TestEventRecorder_Event(t *testing.T) {
 // The EventRecorder tests above are sufficient to verify event recording functionality.
 
 func TestEventRecorder_WithJobFlow(t *testing.T) {
+	//nolint:staticcheck // NewSimpleClientset is deprecated but NewClientset requires applyconfig generation
 	kubeClient := fake.NewSimpleClientset()
 	recorder := NewEventRecorder(kubeClient)
 
@@ -105,6 +106,7 @@ func TestEventRecorder_WithJobFlow(t *testing.T) {
 
 // TestEventRecorder_Integration tests event recording with actual fake client
 func TestEventRecorder_Integration(t *testing.T) {
+	//nolint:staticcheck // NewSimpleClientset is deprecated but NewClientset requires applyconfig generation
 	kubeClient := fake.NewSimpleClientset()
 	recorder := NewEventRecorder(kubeClient)
 

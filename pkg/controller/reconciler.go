@@ -1025,15 +1025,16 @@ func (r *JobFlowReconciler) updateConditions(jobFlow *v1alpha1.JobFlow) {
 		LastTransitionTime: metav1.Now(),
 	}
 
-	if jobFlow.Status.Phase == v1alpha1.JobFlowPhaseSucceeded {
+	switch jobFlow.Status.Phase {
+	case v1alpha1.JobFlowPhaseSucceeded:
 		readyCondition.Status = corev1.ConditionTrue
 		readyCondition.Reason = "FlowSucceeded"
 		readyCondition.Message = "JobFlow completed successfully"
-	} else if jobFlow.Status.Phase == v1alpha1.JobFlowPhaseFailed {
+	case v1alpha1.JobFlowPhaseFailed:
 		readyCondition.Status = corev1.ConditionFalse
 		readyCondition.Reason = "FlowFailed"
 		readyCondition.Message = "JobFlow failed"
-	} else if jobFlow.Status.Phase == v1alpha1.JobFlowPhaseRunning {
+	case v1alpha1.JobFlowPhaseRunning:
 		readyCondition.Status = corev1.ConditionTrue
 		readyCondition.Reason = "FlowRunning"
 		readyCondition.Message = "JobFlow is executing"
@@ -1066,7 +1067,7 @@ func (r *JobFlowReconciler) shouldDeleteJobFlow(jobFlow *v1alpha1.JobFlow) (bool
 	}
 
 	// Get TTL from execution policy
-	var ttlSeconds int32 = DefaultTTLSeconds
+	ttlSeconds := int32(DefaultTTLSeconds)
 	if jobFlow.Spec.ExecutionPolicy != nil && jobFlow.Spec.ExecutionPolicy.TTLSecondsAfterFinished != nil {
 		ttlSeconds = *jobFlow.Spec.ExecutionPolicy.TTLSecondsAfterFinished
 	}

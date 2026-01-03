@@ -176,7 +176,7 @@ func TestJobFlowReconciler_storeArtifactInConfigMap_TooLarge(t *testing.T) {
 	for i := range largeContent {
 		largeContent[i] = 'A'
 	}
-	if err := os.WriteFile(artifactPath, largeContent, 0644); err != nil {
+	if err := os.WriteFile(artifactPath, largeContent, 0600); err != nil {
 		t.Fatalf("Failed to create large artifact file: %v", err)
 	}
 
