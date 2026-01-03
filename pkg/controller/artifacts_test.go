@@ -34,7 +34,7 @@ func TestJobFlowReconciler_uploadArtifactToS3_MissingSecret(t *testing.T) {
 
 	tmpDir := t.TempDir()
 	artifactPath := filepath.Join(tmpDir, "artifact.txt")
-	if err := os.WriteFile(artifactPath, []byte("test content"), 0644); err != nil {
+	if err := os.WriteFile(artifactPath, []byte("test content"), 0600); err != nil {
 		t.Fatalf("Failed to create artifact file: %v", err)
 	}
 
@@ -86,7 +86,7 @@ func TestJobFlowReconciler_uploadArtifactToS3_WithSecrets(t *testing.T) {
 	tmpDir := t.TempDir()
 	artifactPath := filepath.Join(tmpDir, "artifact.txt")
 	artifactContent := "test artifact content"
-	if err := os.WriteFile(artifactPath, []byte(artifactContent), 0644); err != nil {
+	if err := os.WriteFile(artifactPath, []byte(artifactContent), 0600); err != nil {
 		t.Fatalf("Failed to create artifact file: %v", err)
 	}
 

@@ -88,7 +88,7 @@ func TestJobFlowReconciler_storeArtifactInConfigMap_Binary(t *testing.T) {
 	tmpDir := t.TempDir()
 	artifactPath := filepath.Join(tmpDir, "binary.bin")
 	binaryContent := []byte{0x00, 0x01, 0x02, 0x03, 0xFF}
-	if err := os.WriteFile(artifactPath, binaryContent, 0644); err != nil {
+	if err := os.WriteFile(artifactPath, binaryContent, 0600); err != nil {
 		t.Fatalf("Failed to create binary artifact file: %v", err)
 	}
 

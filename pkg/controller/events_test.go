@@ -26,6 +26,7 @@ import (
 )
 
 func TestNewEventRecorder(t *testing.T) {
+	//nolint:staticcheck // NewSimpleClientset is deprecated but NewClientset requires applyconfig generation
 	kubeClient := fake.NewSimpleClientset()
 	recorder := NewEventRecorder(kubeClient)
 
@@ -49,6 +50,7 @@ func TestNewEventRecorder_NilClient(t *testing.T) {
 }
 
 func TestEventRecorder_Eventf(t *testing.T) {
+	//nolint:staticcheck // NewSimpleClientset is deprecated but NewClientset requires applyconfig generation
 	kubeClient := fake.NewSimpleClientset()
 	recorder := NewEventRecorder(kubeClient)
 
@@ -64,6 +66,7 @@ func TestEventRecorder_Eventf(t *testing.T) {
 }
 
 func TestEventRecorder_Event(t *testing.T) {
+	//nolint:staticcheck // NewSimpleClientset is deprecated but NewClientset requires applyconfig generation
 	kubeClient := fake.NewSimpleClientset()
 	recorder := NewEventRecorder(kubeClient)
 

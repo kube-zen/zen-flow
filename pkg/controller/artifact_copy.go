@@ -77,6 +77,7 @@ func (r *JobFlowReconciler) writeBinaryArtifact(data []byte, targetPath string) 
 	}
 
 	// Write binary data to target path
+	//nolint:gosec // targetPath is validated and comes from trusted source (JobFlow spec)
 	if err := os.WriteFile(targetPath, data, DefaultFilePerm); err != nil {
 		return jferrors.Wrapf(err, "file_write_failed", "failed to write binary artifact to %s", targetPath)
 	}

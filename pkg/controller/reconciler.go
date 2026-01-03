@@ -538,10 +538,11 @@ func (r *JobFlowReconciler) createExecutionPlan(dagGraph *dag.Graph, jobFlow *v1
 	for i := range jobFlow.Status.Steps {
 		stepStatus := &jobFlow.Status.Steps[i]
 
-		// Mark as completed if succeeded
-		if stepStatus.Phase == v1alpha1.StepPhaseSucceeded {
+		// Mark as completed based on phase
+		switch stepStatus.Phase {
+		case v1alpha1.StepPhaseSucceeded:
 			completedSteps[stepStatus.Name] = true
-		} else if stepStatus.Phase == v1alpha1.StepPhaseFailed {
+		case v1alpha1.StepPhaseFailed:
 			// P0.3: Failed steps complete if ContinueOnFailure is true
 			if spec, ok := stepSpecs[stepStatus.Name]; ok && spec.ContinueOnFailure {
 				completedSteps[stepStatus.Name] = true

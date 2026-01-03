@@ -160,6 +160,7 @@ func (r *JobFlowReconciler) fetchArtifactFromHTTP(ctx context.Context, httpArtif
 	}
 
 	// Create target file
+	//nolint:gosec // targetPath is validated and comes from trusted source (JobFlow spec)
 	outFile, err := os.Create(targetPath)
 	if err != nil {
 		return jferrors.Wrapf(err, "file_create_failed", "failed to create file %s", targetPath)
@@ -225,6 +226,7 @@ func (r *JobFlowReconciler) uploadArtifactToS3(ctx context.Context, jobFlow *v1a
 	}
 
 	// Open artifact file
+	//nolint:gosec // artifactPath is validated and comes from trusted source (JobFlow spec)
 	file, err := os.Open(artifactPath)
 	if err != nil {
 		return jferrors.Wrapf(err, "file_open_failed", "failed to open artifact file %s", artifactPath)
