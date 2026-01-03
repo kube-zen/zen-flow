@@ -124,23 +124,35 @@ func TestLoad_FromEnvironment(t *testing.T) {
 	if cfg.DefaultRetryLimit != 5 {
 		t.Errorf("Expected DefaultRetryLimit 5, got %d", cfg.DefaultRetryLimit)
 	}
-	verifyConfigValue(t, "DefaultBackoffBase", cfg.DefaultBackoffBase, 2*time.Second)
-	verifyConfigValue(t, "DefaultBackoffFactor", cfg.DefaultBackoffFactor, 3.0)
-	verifyConfigValue(t, "DefaultConfigMapKey", cfg.DefaultConfigMapKey, "data")
-	verifyConfigValue(t, "DefaultContainerName", cfg.DefaultContainerName, "worker")
-	verifyConfigValue(t, "DefaultConcurrencyPolicy", cfg.DefaultConcurrencyPolicy, "Allow")
-	verifyConfigValue(t, "DefaultContentType", cfg.DefaultContentType, "application/json")
-	verifyConfigValue(t, "DefaultArchiveFormat", cfg.DefaultArchiveFormat, "zip")
-	verifyConfigValue(t, "DefaultCompression", cfg.DefaultCompression, "gzip")
-	verifyConfigValue(t, "DefaultDirPerm", cfg.DefaultDirPerm, os.FileMode(0777))
-	verifyConfigValue(t, "DefaultFilePerm", cfg.DefaultFilePerm, os.FileMode(0666))
-}
-
-// verifyConfigValue is a helper to reduce cyclomatic complexity
-func verifyConfigValue(t *testing.T, name string, got, want interface{}) {
-	t.Helper()
-	if got != want {
-		t.Errorf("Expected %s %v, got %v", name, want, got)
+	if cfg.DefaultBackoffBase != 2*time.Second {
+		t.Errorf("Expected DefaultBackoffBase 2s, got %v", cfg.DefaultBackoffBase)
+	}
+	if cfg.DefaultBackoffFactor != 3.0 {
+		t.Errorf("Expected DefaultBackoffFactor 3.0, got %f", cfg.DefaultBackoffFactor)
+	}
+	if cfg.DefaultConfigMapKey != "data" {
+		t.Errorf("Expected DefaultConfigMapKey 'data', got %s", cfg.DefaultConfigMapKey)
+	}
+	if cfg.DefaultContainerName != "worker" {
+		t.Errorf("Expected DefaultContainerName 'worker', got %s", cfg.DefaultContainerName)
+	}
+	if cfg.DefaultConcurrencyPolicy != "Allow" {
+		t.Errorf("Expected DefaultConcurrencyPolicy 'Allow', got %s", cfg.DefaultConcurrencyPolicy)
+	}
+	if cfg.DefaultContentType != "application/json" {
+		t.Errorf("Expected DefaultContentType 'application/json', got %s", cfg.DefaultContentType)
+	}
+	if cfg.DefaultArchiveFormat != "zip" {
+		t.Errorf("Expected DefaultArchiveFormat 'zip', got %s", cfg.DefaultArchiveFormat)
+	}
+	if cfg.DefaultCompression != "gzip" {
+		t.Errorf("Expected DefaultCompression 'gzip', got %s", cfg.DefaultCompression)
+	}
+	if cfg.DefaultDirPerm != 0777 {
+		t.Errorf("Expected DefaultDirPerm 0777, got %o", cfg.DefaultDirPerm)
+	}
+	if cfg.DefaultFilePerm != 0666 {
+		t.Errorf("Expected DefaultFilePerm 0666, got %o", cfg.DefaultFilePerm)
 	}
 }
 
