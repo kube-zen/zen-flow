@@ -53,7 +53,11 @@ func TestJobFlowReconciler_createTarArchive_WithMultipleFiles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to open archive: %v", err)
 	}
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			t.Logf("Failed to close file: %v", err)
+		}
+	}()
 
 	tarReader := tar.NewReader(file)
 	header, err := tarReader.Next()
@@ -92,13 +96,21 @@ func TestJobFlowReconciler_createTarArchive_Gzip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to open archive: %v", err)
 	}
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			t.Logf("Failed to close file: %v", err)
+		}
+	}()
 
 	gzipReader, err := gzip.NewReader(file)
 	if err != nil {
 		t.Fatalf("Failed to create gzip reader: %v", err)
 	}
-	defer gzipReader.Close()
+	defer func() {
+		if err := gzipReader.Close(); err != nil {
+			t.Logf("Failed to close gzip reader: %v", err)
+		}
+	}()
 
 	tarReader := tar.NewReader(gzipReader)
 	header, err := tarReader.Next()
@@ -137,7 +149,11 @@ func TestJobFlowReconciler_createZipArchive_WithMultipleFiles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to open zip archive: %v", err)
 	}
-	defer zipReader.Close()
+	defer func() {
+		if err := zipReader.Close(); err != nil {
+			t.Logf("Failed to close zip reader: %v", err)
+		}
+	}()
 
 	if len(zipReader.File) == 0 {
 		t.Error("Expected at least one file in zip archive")
@@ -153,7 +169,9 @@ func TestJobFlowReconciler_createZipArchive_WithMultipleFiles(t *testing.T) {
 				t.Fatalf("Failed to open file in zip: %v", err)
 			}
 			content, err := io.ReadAll(rc)
-			rc.Close()
+			if err := rc.Close(); err != nil {
+				t.Logf("Failed to close zip file reader: %v", err)
+			}
 			if err != nil {
 				t.Fatalf("Failed to read file content: %v", err)
 			}

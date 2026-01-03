@@ -38,7 +38,9 @@ func TestJobFlowReconciler_fetchArtifactFromHTTP_WithHeaders(t *testing.T) {
 			return
 		}
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("test content"))
+		if _, err := w.Write([]byte("test content")); err != nil {
+			t.Errorf("Failed to write response: %v", err)
+		}
 	}))
 	defer server.Close()
 
@@ -88,7 +90,9 @@ func TestJobFlowReconciler_fetchArtifactFromHTTP_CreateDirectory(t *testing.T) {
 	// Create a test server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("test content"))
+		if _, err := w.Write([]byte("test content")); err != nil {
+			t.Errorf("Failed to write response: %v", err)
+		}
 	}))
 	defer server.Close()
 

@@ -144,7 +144,11 @@ func (r *JobFlowReconciler) fetchArtifactFromHTTP(ctx context.Context, httpArtif
 	if err != nil {
 		return jferrors.Wrapf(err, "http_fetch_failed", "failed to fetch artifact from %s", httpArtifact.URL)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			logger.Error(err, "Failed to close HTTP response body", sdklog.String("url", httpArtifact.URL))
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return jferrors.New("http_error", fmt.Sprintf("HTTP request failed with status %d", resp.StatusCode))
@@ -160,7 +164,11 @@ func (r *JobFlowReconciler) fetchArtifactFromHTTP(ctx context.Context, httpArtif
 	if err != nil {
 		return jferrors.Wrapf(err, "file_create_failed", "failed to create file %s", targetPath)
 	}
-	defer outFile.Close()
+	defer func() {
+		if err := outFile.Close(); err != nil {
+			logger.Error(err, "Failed to close output file", sdklog.String("target_path", targetPath))
+		}
+	}()
 
 	// Copy response body to file
 	if _, err := io.Copy(outFile, resp.Body); err != nil {
@@ -221,7 +229,11 @@ func (r *JobFlowReconciler) uploadArtifactToS3(ctx context.Context, jobFlow *v1a
 	if err != nil {
 		return jferrors.Wrapf(err, "file_open_failed", "failed to open artifact file %s", artifactPath)
 	}
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			logger.Error(err, "Failed to close artifact file", sdklog.String("artifact_path", artifactPath))
+		}
+	}()
 
 	// Get file info for content type
 	fileInfo, err := file.Stat()
