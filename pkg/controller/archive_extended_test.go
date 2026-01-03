@@ -203,4 +203,3 @@ func TestJobFlowReconciler_archiveArtifact_ZipGzip(t *testing.T) {
 		t.Errorf("Expected .zip extension, got %s", filepath.Ext(archivePath))
 	}
 }
-
