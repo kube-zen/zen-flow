@@ -83,17 +83,32 @@ func (r *JobFlowReconciler) createTarArchive(sourcePath, archivePath string, gzi
 	if err != nil {
 		return fmt.Errorf("failed to create archive file: %w", err)
 	}
-	defer archiveFile.Close()
+	defer func() {
+		if err := archiveFile.Close(); err != nil {
+			logger := sdklog.NewLogger("zen-flow-controller")
+			logger.Error("Failed to close archive file", sdklog.String("archive_path", archivePath), sdklog.Error(err))
+		}
+	}()
 
 	var writer io.Writer = archiveFile
 	if gzipCompress {
 		gzipWriter := gzip.NewWriter(archiveFile)
-		defer gzipWriter.Close()
+		defer func() {
+			if err := gzipWriter.Close(); err != nil {
+				logger := sdklog.NewLogger("zen-flow-controller")
+				logger.Error("Failed to close gzip writer", sdklog.String("archive_path", archivePath), sdklog.Error(err))
+			}
+		}()
 		writer = gzipWriter
 	}
 
 	tarWriter := tar.NewWriter(writer)
-	defer tarWriter.Close()
+	defer func() {
+		if err := tarWriter.Close(); err != nil {
+			logger := sdklog.NewLogger("zen-flow-controller")
+			logger.Error("Failed to close tar writer", sdklog.String("archive_path", archivePath), sdklog.Error(err))
+		}
+	}()
 
 	// Walk source path and add files to archive
 	return filepath.Walk(sourcePath, func(filePath string, info os.FileInfo, err error) error {
@@ -111,7 +126,12 @@ func (r *JobFlowReconciler) createTarArchive(sourcePath, archivePath string, gzi
 		if err != nil {
 			return fmt.Errorf("failed to open file %s: %w", filePath, err)
 		}
-		defer file.Close()
+		defer func() {
+			if err := file.Close(); err != nil {
+				logger := sdklog.NewLogger("zen-flow-controller")
+				logger.Error("Failed to close file", sdklog.String("file_path", filePath), sdklog.Error(err))
+			}
+		}()
 
 		// Get relative path for archive
 		relPath, err := filepath.Rel(sourcePath, filePath)
@@ -147,10 +167,20 @@ func (r *JobFlowReconciler) createZipArchive(sourcePath, archivePath string) err
 	if err != nil {
 		return fmt.Errorf("failed to create archive file: %w", err)
 	}
-	defer archiveFile.Close()
+	defer func() {
+		if err := archiveFile.Close(); err != nil {
+			logger := sdklog.NewLogger("zen-flow-controller")
+			logger.Error("Failed to close archive file", sdklog.String("archive_path", archivePath), sdklog.Error(err))
+		}
+	}()
 
 	zipWriter := zip.NewWriter(archiveFile)
-	defer zipWriter.Close()
+	defer func() {
+		if err := zipWriter.Close(); err != nil {
+			logger := sdklog.NewLogger("zen-flow-controller")
+			logger.Error("Failed to close zip writer", sdklog.String("archive_path", archivePath), sdklog.Error(err))
+		}
+	}()
 
 	// Walk source path and add files to archive
 	return filepath.Walk(sourcePath, func(filePath string, info os.FileInfo, err error) error {
@@ -168,7 +198,12 @@ func (r *JobFlowReconciler) createZipArchive(sourcePath, archivePath string) err
 		if err != nil {
 			return fmt.Errorf("failed to open file %s: %w", filePath, err)
 		}
-		defer file.Close()
+		defer func() {
+			if err := file.Close(); err != nil {
+				logger := sdklog.NewLogger("zen-flow-controller")
+				logger.Error("Failed to close file", sdklog.String("file_path", filePath), sdklog.Error(err))
+			}
+		}()
 
 		// Get relative path for archive
 		relPath, err := filepath.Rel(sourcePath, filePath)

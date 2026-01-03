@@ -78,9 +78,15 @@ func TestLoad_Defaults(t *testing.T) {
 
 func TestLoad_FromEnvironment(t *testing.T) {
 	// Set environment variables
-	os.Setenv("ZEN_FLOW_DEFAULT_TTL_SECONDS", "3600")
-	os.Setenv("ZEN_FLOW_CONFIGMAP_SIZE_LIMIT", "2048000")
-	os.Setenv("ZEN_FLOW_UID_TRUNCATE_LENGTH", "12")
+	if err := os.Setenv("ZEN_FLOW_DEFAULT_TTL_SECONDS", "3600"); err != nil {
+		t.Fatalf("Failed to set environment variable: %v", err)
+	}
+	if err := os.Setenv("ZEN_FLOW_CONFIGMAP_SIZE_LIMIT", "2048000"); err != nil {
+		t.Fatalf("Failed to set environment variable: %v", err)
+	}
+	if err := os.Setenv("ZEN_FLOW_UID_TRUNCATE_LENGTH", "12"); err != nil {
+		t.Fatalf("Failed to set environment variable: %v", err)
+	}
 	os.Setenv("ZEN_FLOW_DEFAULT_BACKOFF_LIMIT", "10")
 	os.Setenv("ZEN_FLOW_DEFAULT_RETRY_LIMIT", "5")
 	os.Setenv("ZEN_FLOW_DEFAULT_BACKOFF_BASE", "2s")
