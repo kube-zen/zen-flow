@@ -136,7 +136,7 @@ func TestJobFlowReconciler_createExecutionPlan_Additional(t *testing.T) {
 			dagGraph: func() *dag.Graph {
 				g := dag.BuildDAG([]v1alpha1.Step{
 					{Name: "step1", ContinueOnFailure: true},
-					{Name: "step2", DependsOn: []string{"step1"}},
+					{Name: "step2", Dependencies: []string{"step1"}},
 				})
 				return g
 			}(),
