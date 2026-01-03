@@ -61,7 +61,7 @@ func TestJobFlowReconciler_checkStepTimeouts_Additional(t *testing.T) {
 					Steps: []v1alpha1.Step{
 						{
 							Name:           "step1",
-							TimeoutSeconds: intPtr(3600), // 1 hour
+							TimeoutSeconds: int64Ptr(3600), // 1 hour
 						},
 					},
 				},
@@ -114,7 +114,7 @@ func TestJobFlowReconciler_checkStepTimeouts_Additional(t *testing.T) {
 					Steps: []v1alpha1.Step{
 						{
 							Name:           "step1",
-							TimeoutSeconds: intPtr(60), // 1 minute
+							TimeoutSeconds: int64Ptr(60), // 1 minute
 						},
 					},
 				},
@@ -276,7 +276,7 @@ func TestJobFlowReconciler_handleStepRetry_Additional(t *testing.T) {
 							Name: "step1",
 							RetryPolicy: &v1alpha1.RetryPolicy{
 								Limit: 3,
-								Backoff: &v1alpha1.Backoff{
+								Backoff: &v1alpha1.BackoffPolicy{
 									Type:     "Fixed",
 									Duration: "10s",
 								},
@@ -308,7 +308,7 @@ func TestJobFlowReconciler_handleStepRetry_Additional(t *testing.T) {
 							Name: "step1",
 							RetryPolicy: &v1alpha1.RetryPolicy{
 								Limit: 3,
-								Backoff: &v1alpha1.Backoff{
+								Backoff: &v1alpha1.BackoffPolicy{
 									Type:     "Fixed",
 									Duration: "10s",
 								},
@@ -403,7 +403,7 @@ func TestJobFlowReconciler_calculateBackoff_Additional(t *testing.T) {
 		{
 			name: "Fixed backoff",
 			retryPolicy: &v1alpha1.RetryPolicy{
-				Backoff: &v1alpha1.Backoff{
+				Backoff: &v1alpha1.BackoffPolicy{
 					Type:     "Fixed",
 					Duration: "5s",
 				},
@@ -415,7 +415,7 @@ func TestJobFlowReconciler_calculateBackoff_Additional(t *testing.T) {
 		{
 			name: "Linear backoff",
 			retryPolicy: &v1alpha1.RetryPolicy{
-				Backoff: &v1alpha1.Backoff{
+				Backoff: &v1alpha1.BackoffPolicy{
 					Type:     "Linear",
 					Duration: "2s",
 				},
@@ -427,7 +427,7 @@ func TestJobFlowReconciler_calculateBackoff_Additional(t *testing.T) {
 		{
 			name: "Exponential backoff",
 			retryPolicy: &v1alpha1.RetryPolicy{
-				Backoff: &v1alpha1.Backoff{
+				Backoff: &v1alpha1.BackoffPolicy{
 					Type:     "Exponential",
 					Duration: "1s",
 					Factor:   floatPtr(2.0),
@@ -440,7 +440,7 @@ func TestJobFlowReconciler_calculateBackoff_Additional(t *testing.T) {
 		{
 			name: "Invalid duration - defaults to 1s",
 			retryPolicy: &v1alpha1.RetryPolicy{
-				Backoff: &v1alpha1.Backoff{
+				Backoff: &v1alpha1.BackoffPolicy{
 					Type:     "Fixed",
 					Duration: "invalid",
 				},
@@ -452,7 +452,7 @@ func TestJobFlowReconciler_calculateBackoff_Additional(t *testing.T) {
 		{
 			name: "Unknown type - defaults to exponential",
 			retryPolicy: &v1alpha1.RetryPolicy{
-				Backoff: &v1alpha1.Backoff{
+				Backoff: &v1alpha1.BackoffPolicy{
 					Type:     "Unknown",
 					Duration: "1s",
 				},
@@ -601,6 +601,10 @@ func TestJobFlowReconciler_updateConditions(t *testing.T) {
 }
 
 func intPtr(i int) *int {
+	return &i
+}
+
+func int64Ptr(i int64) *int64 {
 	return &i
 }
 
