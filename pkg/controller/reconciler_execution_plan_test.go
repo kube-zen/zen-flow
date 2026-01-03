@@ -17,9 +17,13 @@ limitations under the License.
 package controller
 
 import (
+	"context"
 	"testing"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/kube-zen/zen-flow/pkg/api/v1alpha1"
 	"github.com/kube-zen/zen-flow/pkg/controller/dag"
