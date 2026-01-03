@@ -140,10 +140,11 @@ func TestJobFlowReconciler_resolveParameter_JSONPathWithStepName(t *testing.T) {
 	}
 
 	// Test JSONPath with step name
+	// Note: The code marshals job.Status, so the JSONPath should be $.succeeded, not $.status.succeeded
 	param := &v1alpha1.ParameterInput{
 		Name: "test-param",
 		ValueFrom: &v1alpha1.ParameterValueFrom{
-			JSONPath: "step1:$.status.succeeded",
+			JSONPath: "step1:$.succeeded",
 		},
 	}
 
