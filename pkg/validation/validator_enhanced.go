@@ -378,10 +378,24 @@ func validateArtifactInput(artifact *v1alpha1.ArtifactInput, stepName string, in
 		return fmt.Errorf("artifact %q: cannot specify both from and http", artifact.Name)
 	}
 
-	// Validate From step name format
+	// Validate From format (can be "stepName" or "stepName/artifactName")
 	if artifact.From != "" {
-		if errs := validation.IsDNS1123Subdomain(artifact.From); len(errs) > 0 {
-			return fmt.Errorf("artifact %q: invalid from step name %q: %v", artifact.Name, artifact.From, errs)
+		// Parse the From field - it can be "stepName" or "stepName/artifactName"
+		parts := strings.Split(artifact.From, "/")
+		stepName := parts[0]
+		if errs := validation.IsDNS1123Subdomain(stepName); len(errs) > 0 {
+			return fmt.Errorf("artifact %q: invalid from step name %q: %v", artifact.Name, stepName, errs)
+		}
+		// If there's an artifact name part, validate it too
+		if len(parts) > 1 {
+			artifactName := parts[1]
+			if errs := validation.IsDNS1123Subdomain(artifactName); len(errs) > 0 {
+				return fmt.Errorf("artifact %q: invalid artifact name in from %q: %v", artifact.Name, artifactName, errs)
+			}
+		}
+		// Reject more than one slash
+		if len(parts) > 2 {
+			return fmt.Errorf("artifact %q: invalid from format %q (expected 'stepName' or 'stepName/artifactName')", artifact.Name, artifact.From)
 		}
 	}
 
