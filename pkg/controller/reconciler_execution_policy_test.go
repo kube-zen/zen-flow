@@ -30,7 +30,10 @@ import (
 	"github.com/kube-zen/zen-flow/pkg/controller/metrics"
 )
 
-func TestJobFlowReconciler_checkConcurrencyPolicy(t *testing.T) {
+// TestJobFlowReconciler_checkConcurrencyPolicy is tested in reconciler_test.go
+// This test is removed to avoid duplication
+
+func TestJobFlowReconciler_checkConcurrencyPolicy_Additional(t *testing.T) {
 	tests := []struct {
 		name     string
 		policy   string
@@ -129,7 +132,10 @@ func TestJobFlowReconciler_checkConcurrencyPolicy(t *testing.T) {
 	}
 }
 
-func TestJobFlowReconciler_checkActiveDeadline(t *testing.T) {
+// TestJobFlowReconciler_checkActiveDeadline is tested in reconciler_test.go
+// This test is removed to avoid duplication
+
+func TestJobFlowReconciler_checkActiveDeadline_Additional(t *testing.T) {
 	now := time.Now()
 	tests := []struct {
 		name    string
@@ -281,7 +287,10 @@ func TestJobFlowReconciler_checkBackoffLimit(t *testing.T) {
 	}
 }
 
-func TestJobFlowReconciler_shouldDeleteJobFlow(t *testing.T) {
+// TestJobFlowReconciler_shouldDeleteJobFlow is tested in reconciler_test.go
+// This test is removed to avoid duplication
+
+func TestJobFlowReconciler_shouldDeleteJobFlow_Additional(t *testing.T) {
 	now := time.Now()
 	tests := []struct {
 		name    string

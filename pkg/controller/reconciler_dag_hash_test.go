@@ -27,7 +27,10 @@ import (
 	"github.com/kube-zen/zen-flow/pkg/controller/metrics"
 )
 
-func TestJobFlowReconciler_computeStepsHash(t *testing.T) {
+// TestJobFlowReconciler_computeStepsHash is tested in reconciler_dag_cache_test.go
+// This test is removed to avoid duplication
+
+func TestJobFlowReconciler_computeStepsHash_Additional(t *testing.T) {
 	tests := []struct {
 		name  string
 		steps []v1alpha1.Step
@@ -80,7 +83,10 @@ func TestJobFlowReconciler_computeStepsHash(t *testing.T) {
 	}
 }
 
-func TestJobFlowReconciler_getOrBuildDAG(t *testing.T) {
+// TestJobFlowReconciler_getOrBuildDAG is tested in reconciler_dag_cache_test.go
+// This test is removed to avoid duplication
+
+func TestJobFlowReconciler_getOrBuildDAG_Additional(t *testing.T) {
 	tests := []struct {
 		name    string
 		jobFlow *v1alpha1.JobFlow
