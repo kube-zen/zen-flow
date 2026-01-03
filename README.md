@@ -14,7 +14,7 @@ This component uses `zen-sdk` for unified observability and infrastructure:
 - **`zen-sdk/pkg/observability`** - OpenTelemetry distributed tracing
 - **`zen-sdk/pkg/leader`** - Kubernetes leader election
 
-See [zen-sdk README](../../zen-sdk/README.md) for more information about the SDK packages.
+See [zen-sdk README](https://github.com/kube-zen/zen-sdk/blob/main/README.md) for more information about the SDK packages.
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Go Version](https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go)](https://go.dev/)
