@@ -108,9 +108,25 @@ jobs:
       
       - name: Check coverage threshold
         run: |
+          # Verify coverage.out exists and show its location
+          if [ ! -f coverage.out ]; then
+            echo "❌ Error: coverage.out file not found!"
+            echo "Current directory: $(pwd)"
+            echo "Files in current directory:"
+            ls -la | head -20
+            exit 1
+          fi
+          echo "Using coverage.out from: $(pwd)/coverage.out"
+          echo "File size: $(wc -c < coverage.out) bytes"
+          echo ""
+          echo "Coverage breakdown by package:"
+          go tool cover -func=coverage.out | grep -v "pkg/api/v1alpha1" | grep -E "^\S+\.go:" | awk -F: '{pkg=$1; gsub(/.*\//, "", pkg); gsub(/\.go$/, "", pkg); files[pkg]++; sum[pkg]+=$3} END {for (p in files) if (files[p] > 0) printf "  %-30s %.1f%%\n", p, sum[p]/files[p]}' | sort
+          echo ""
           COVERAGE=$(go tool cover -func=coverage.out | grep -v "pkg/api/v1alpha1" | grep "total:" | awk '{print $3}' | sed 's/%//')
           if [ -z "$COVERAGE" ]; then
             echo "⚠️  Could not determine coverage percentage"
+            echo "Full coverage output:"
+            go tool cover -func=coverage.out | tail -5
             exit 0
           fi
           echo "Coverage: $COVERAGE%"
