@@ -938,10 +938,11 @@ func (r *JobFlowReconciler) updateJobFlowStatus(ctx context.Context, jobFlow *v1
 		failed := int32(0)
 
 		for _, stepStatus := range jobFlow.Status.Steps {
-			if stepStatus.Phase == v1alpha1.StepPhaseSucceeded {
+			switch stepStatus.Phase {
+			case v1alpha1.StepPhaseSucceeded:
 				completed++
 				successful++
-			} else if stepStatus.Phase == v1alpha1.StepPhaseFailed {
+			case v1alpha1.StepPhaseFailed:
 				completed++
 				failed++
 			}

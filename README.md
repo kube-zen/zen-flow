@@ -18,6 +18,7 @@ See [zen-sdk README](../../zen-sdk/README.md) for more information about the SDK
 
 [![Version](https://img.shields.io/badge/version-0.0.1--alpha-blue)](https://github.com/kube-zen/zen-flow)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
+[![Go Version](https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go)](https://go.dev/)
 [![CI](https://github.com/kube-zen/zen-flow/workflows/CI/badge.svg)](https://github.com/kube-zen/zen-flow/actions)
 
 **zen-flow** is a Kubernetes-native job orchestration controller that provides declarative, sequential execution of Kubernetes Jobs using standard CRDs. It addresses the critical gap between isolated Kubernetes Jobs and heavyweight workflow engines like Argo Workflows, offering production-grade orchestration with zero operational overhead.
