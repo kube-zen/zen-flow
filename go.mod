@@ -5,7 +5,7 @@ go 1.25.0
 require (
 	github.com/PaesslerAG/jsonpath v0.1.1
 	github.com/go-logr/logr v1.4.3
-	github.com/kube-zen/zen-sdk v0.2.7-alpha.0.20260102213536-b63f7f2c3788
+	github.com/kube-zen/zen-sdk v0.1.2-alpha.0.20260103202524-0bce5d66908f
 	github.com/minio/minio-go/v7 v7.0.97
 	github.com/prometheus/client_golang v1.23.2
 	gopkg.in/yaml.v3 v3.0.1

@@ -15,13 +15,17 @@ WORKDIR /build
 RUN apk add --no-cache git make
 
 # Copy go mod files
-COPY go.mod go.sum* ./
+COPY zen-flow/go.mod zen-flow/go.sum* ./
 
-# Download dependencies (zen-sdk will be fetched from GitHub via go.mod)
-RUN go mod download
+# Copy zen-sdk (needed for latest HTTP client changes)
+COPY zen-sdk/ ./zen-sdk/
+
+# Download dependencies (with zen-sdk replace directive)
+RUN go mod edit -replace github.com/kube-zen/zen-sdk=./zen-sdk && \
+    go mod download
 
 # Copy source code
-COPY . .
+COPY zen-flow/ .
 
 # Build
 # Default: GA-only (no experimental features)

@@ -33,6 +33,7 @@ import (
 
 	"github.com/kube-zen/zen-flow/pkg/api/v1alpha1"
 	jferrors "github.com/kube-zen/zen-flow/pkg/errors"
+	sdkhttp "github.com/kube-zen/zen-sdk/pkg/http"
 	sdklog "github.com/kube-zen/zen-sdk/pkg/logging"
 )
 
@@ -138,9 +139,11 @@ func (r *JobFlowReconciler) fetchArtifactFromHTTP(ctx context.Context, httpArtif
 		req.Header.Set(k, v)
 	}
 
-	// Execute request
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	// Execute request with hardened HTTP client (retry, metrics, connection pooling)
+	httpConfig := sdkhttp.DefaultClientConfig()
+	httpConfig.ServiceName = "zen-flow-artifacts"
+	httpClient := sdkhttp.NewClient(httpConfig)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return jferrors.Wrapf(err, "http_fetch_failed", "failed to fetch artifact from %s", httpArtifact.URL)
 	}

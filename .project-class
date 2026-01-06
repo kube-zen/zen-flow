@@ -1,0 +1,27 @@
+# Project Classification: zen-flow
+CLASS: oss
+SCOPE: standalone-oss-component
+BOUNDARIES:
+  - TYPE: open-source
+  - DECOUPLED: true
+  - NO_PRIVATE_IMPORTS: true
+
+FORBIDDEN:
+  - zen-platform/* imports
+  - zen-admin/* imports
+  - zen-saas/* references
+  - Private API endpoints
+  - PM/admin documentation
+  - Completion reports
+
+ALLOWED:
+  - Standard library
+  - k8s.io/client-go/*
+  - k8s.io/apimachinery/*
+  - zen-sdk (OSS SDK only)
+  - User-facing documentation
+
+DOCUMENTATION_RULES:
+  - User-facing docs only
+  - NO PM/admin docs
+
