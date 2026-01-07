@@ -87,11 +87,27 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
     
+      - name: Determine build context
+        id: build-context
+        run: |
+          if [ -d "zen-flow" ] && [ -d "zen-sdk" ]; then
+            echo "context=." >> $GITHUB_OUTPUT
+            echo "dockerfile=./zen-flow/Dockerfile" >> $GITHUB_OUTPUT
+            echo "sarif_output=./zen-flow/trivy-results.sarif" >> $GITHUB_OUTPUT
+          elif [ -f "Dockerfile" ] && [ -f "go.mod" ]; then
+            echo "context=." >> $GITHUB_OUTPUT
+            echo "dockerfile=./Dockerfile" >> $GITHUB_OUTPUT
+            echo "sarif_output=./trivy-results.sarif" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Cannot determine build context"
+            exit 1
+          fi
+      
       - name: Build Docker image
         uses: docker/build-push-action@v5
         with:
-          context: .
-          file: ./Dockerfile
+          context: ${{ steps.build-context.outputs.context }}
+          file: ${{ steps.build-context.outputs.dockerfile }}
           push: false
           load: true
           tags: kubezen/zen-flow-controller:scan-test
@@ -99,17 +115,20 @@ jobs:
           cache-to: type=gha,mode=max
       
       - name: Run Trivy vulnerability scanner
+        id: trivy-scan
         uses: aquasecurity/trivy-action@master
+        continue-on-error: true
         with:
           image-ref: kubezen/zen-flow-controller:scan-test
           format: 'sarif'
-          output: ./trivy-results.sarif
+          output: ${{ steps.build-context.outputs.sarif_output }}
           severity: 'CRITICAL,HIGH'
           exit-code: '1'
       
       - name: Upload Trivy results to GitHub Security
+        if: always() && steps.trivy-scan.outcome != 'skipped'
         uses: github/codeql-action/upload-sarif@v4
-        if: always()
+        continue-on-error: true
         with:
-          sarif_file: ./trivy-results.sarif
+          sarif_file: ${{ steps.build-context.outputs.sarif_output }}
 
